@@ -21,4 +21,4 @@
 /* Require a function to be inlined for performance reasons */
 #define FAST_CALL static FORCE_INLINE
 
-#endif // CUDA_MCTS_CHECKRS_INCLUDE_DEFINES_HPP_
+#endif  // CUDA_MCTS_CHECKRS_INCLUDE_DEFINES_HPP_
