@@ -3,6 +3,7 @@
 
 int main()
 {
-    CudaMctsCheckers::MonteCarloTree tree{};
+    CudaMctsCheckers::Board board;
+    CudaMctsCheckers::MonteCarloTree tree(board);
     return 0;
 }

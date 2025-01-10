@@ -4,11 +4,20 @@
 
 #include <Board.hpp>
 #include <Move.hpp>
+#include <concepts.hpp>
 #include <defines.hpp>
 #include <unordered_map>
+#include <vector>
 
 namespace CudaMctsCheckers
 {
+
+struct PACK SimulationResult {
+    f32 score;
+    u32 visits;
+};
+
+static constexpr f32 kExplorationConstant = 1.41f;
 
 class MonteCarloTreeNode;
 
@@ -18,13 +27,14 @@ class MonteCarloTree
     //------------------------------------------------------------------------------//
     //                        Class Creation and Destruction                        //
     //------------------------------------------------------------------------------//
-    MonteCarloTree();
+    explicit MonteCarloTree(Board board);
 
     ~MonteCarloTree();
 
     //------------------------------------------------------------------------------//
     //                                Public Methods                                //
     //------------------------------------------------------------------------------//
+    Move Run(f32 time);
 
     //------------------------------------------------------------------------------//
     //                               Public Variables                               //
@@ -35,10 +45,25 @@ class MonteCarloTree
     //                                Private Methods                               //
     //------------------------------------------------------------------------------//
 
+    ///////////////////// Main Monte Carlo Tree Search steps /////////////////////////
+    MonteCarloTreeNode *SelectNode();
+    std::vector<MonteCarloTreeNode *> ExpandNode(MonteCarloTreeNode *node);
+    std::vector<SimulationResult> SimulateNodes(std::vector<MonteCarloTreeNode *> nodes);
+    void Backpropagate(
+        std::vector<MonteCarloTreeNode *> &nodes, const std::vector<SimulationResult> &results
+    );
+
+    //////////////////////////////////////////////////////////////////////////////////
+    template <MaxComparable EvalType, EvalFunction<EvalType> auto EvalFunc>
+    Move SelectBestMove();
+
+    // Evaluation functions
+    static f32 WinRate(MonteCarloTreeNode *node);
+
     //------------------------------------------------------------------------------//
     //                               Private Variables                              //
     //------------------------------------------------------------------------------//
-    MonteCarloTreeNode *root{};  // Root node of the tree
+    MonteCarloTreeNode *root_{};  // Root node of the tree
 };
 
 class MonteCarloTreeNode
@@ -47,17 +72,20 @@ class MonteCarloTreeNode
     //------------------------------------------------------------------------------//
     //                        Class Creation and Destruction                        //
     //------------------------------------------------------------------------------//
-    explicit MonteCarloTreeNode(MonteCarloTreeNode *parent = nullptr);
+    explicit MonteCarloTreeNode(Board board, MonteCarloTreeNode *parent = nullptr);
 
     ~MonteCarloTreeNode();
 
     //------------------------------------------------------------------------------//
     //                                Public Methods                                //
     //------------------------------------------------------------------------------//
+    f32 UctScore() const;
 
     //------------------------------------------------------------------------------//
     //                               Public Variables                               //
     //------------------------------------------------------------------------------//
+    size_t visits_ = 0;  // Number of times the node has been visited
+    f32 score_     = 0;  // Score of the node
 
     private:
     //------------------------------------------------------------------------------//
@@ -67,12 +95,16 @@ class MonteCarloTreeNode
     //------------------------------------------------------------------------------//
     //                               Private Variables                              //
     //------------------------------------------------------------------------------//
-    Board board;                 // Board state of the node
-    MonteCarloTreeNode *parent;  // Parent node of the current node
+    Board board_{};               // Board state of the node
+    MonteCarloTreeNode *parent_;  // Parent node of the current node
     std::unordered_map<Move,
-                       MonteCarloTreeNode *> children;  // Map of moves to child nodes
+                       MonteCarloTreeNode *> children_;  // Map of moves to child nodes
+
+    friend MonteCarloTree;
 };
 
 }  // namespace CudaMctsCheckers
+
+#include <MonteCarloTree.tpp>
 
 #endif  // CUDA_MCTS_CHECKRS_INCLUDE_MCT_HPP_
