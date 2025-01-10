@@ -18,7 +18,4 @@
 /* Declare a function as a static inline wrapper */
 #define WRAP_CALL static FORCE_INLINE
 
-/* Require a function to be inlined for performance reasons */
-#define FAST_CALL static FORCE_INLINE
-
 #endif  // CUDA_MCTS_CHECKRS_INCLUDE_DEFINES_HPP_

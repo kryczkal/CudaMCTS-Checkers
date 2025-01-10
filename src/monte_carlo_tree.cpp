@@ -1,5 +1,5 @@
-#include <MonteCarloTree.hpp>
 #include <concepts.hpp>
+#include <monte_carlo_tree.hpp>
 
 #include <cassert>
 #include <chrono>
@@ -61,7 +61,7 @@ void MonteCarloTree::Backpropagate(
     }
 }
 
-Move MonteCarloTree::Run(f32 time)
+Move::Type MonteCarloTree::Run(f32 time)
 {
     std::chrono::time_point<std::chrono::system_clock> start = std::chrono::system_clock::now();
     while (std::chrono::duration<f32>(std::chrono::system_clock::now() - start).count() < time) {

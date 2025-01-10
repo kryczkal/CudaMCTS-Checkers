@@ -1,19 +1,19 @@
 #ifndef CUDA_MCTS_CHECKRS_INCLUDE_MCT_TPP_
 #define CUDA_MCTS_CHECKRS_INCLUDE_MCT_TPP_
 
-#include <MonteCarloTree.hpp>
 #include <cassert>
 #include <concepts.hpp>
+#include <monte_carlo_tree.hpp>
 
 namespace CudaMctsCheckers
 {
 
 template <MaxComparable EvalType, EvalFunction<EvalType> auto EvalFunc>
-Move MonteCarloTree::SelectBestMove()
+Move::Type MonteCarloTree::SelectBestMove()
 {
     assert(root_ != nullptr);
 
-    Move best_move = 0;
+    Move::Type best_move = 0;
     if (root_->children_.empty()) {
         return best_move;
     }

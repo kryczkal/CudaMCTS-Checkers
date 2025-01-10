@@ -2,10 +2,11 @@
 #ifndef CUDA_MCTS_CHECKRS_INCLUDE_MCT_HPP_
 #define CUDA_MCTS_CHECKRS_INCLUDE_MCT_HPP_
 
-#include <Board.hpp>
-#include <Move.hpp>
+#include <array>
+#include <board.hpp>
 #include <concepts.hpp>
-#include <defines.hpp>
+#include <cpp_defines.hpp>
+#include <move.hpp>
 #include <unordered_map>
 #include <vector>
 
@@ -34,7 +35,7 @@ class MonteCarloTree
     //------------------------------------------------------------------------------//
     //                                Public Methods                                //
     //------------------------------------------------------------------------------//
-    Move Run(f32 time);
+    Move::Type Run(f32 time);
 
     //------------------------------------------------------------------------------//
     //                               Public Variables                               //
@@ -55,7 +56,7 @@ class MonteCarloTree
 
     //////////////////////////////////////////////////////////////////////////////////
     template <MaxComparable EvalType, EvalFunction<EvalType> auto EvalFunc>
-    Move SelectBestMove();
+    Move::Type SelectBestMove();
 
     // Evaluation functions
     static f32 WinRate(MonteCarloTreeNode *node);
@@ -64,6 +65,8 @@ class MonteCarloTree
     //                               Private Variables                              //
     //------------------------------------------------------------------------------//
     MonteCarloTreeNode *root_{};  // Root node of the tree
+
+    Move::MoveArrayForPlayer h_generated_moves_;
 };
 
 class MonteCarloTreeNode
@@ -97,7 +100,7 @@ class MonteCarloTreeNode
     //------------------------------------------------------------------------------//
     Board board_{};               // Board state of the node
     MonteCarloTreeNode *parent_;  // Parent node of the current node
-    std::unordered_map<Move,
+    std::unordered_map<Move::Type,
                        MonteCarloTreeNode *> children_;  // Map of moves to child nodes
 
     friend MonteCarloTree;
@@ -105,6 +108,6 @@ class MonteCarloTreeNode
 
 }  // namespace CudaMctsCheckers
 
-#include <MonteCarloTree.tpp>
+#include <monte_carlo_tree.tpp>
 
 #endif  // CUDA_MCTS_CHECKRS_INCLUDE_MCT_HPP_

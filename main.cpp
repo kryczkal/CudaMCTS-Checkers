@@ -1,5 +1,5 @@
-#include <MonteCarloTree.hpp>
 #include <iostream>
+#include <monte_carlo_tree.hpp>
 
 int main()
 {
