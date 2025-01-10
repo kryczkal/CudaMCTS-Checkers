@@ -1,7 +1,8 @@
-#include <iostream>
 #include <MonteCarloTree.hpp>
+#include <iostream>
 
-int main() {
+int main()
+{
     CudaMctsCheckers::MonteCarloTree tree{};
     return 0;
 }
