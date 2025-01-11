@@ -1,5 +1,6 @@
 #include <concepts.hpp>
 #include <monte_carlo_tree.hpp>
+#include <move_generation.hpp>
 
 #include <cassert>
 #include <chrono>
@@ -11,7 +12,7 @@ namespace CudaMctsCheckers
 
 MonteCarloTree::MonteCarloTree(CudaMctsCheckers::Board board)
 {
-    root_ = new MonteCarloTreeNode(board);
+    root_ = new MonteCarloTreeNode(board, Turn::kWhite);  // TODO: What if black starts?
 }
 
 MonteCarloTree::~MonteCarloTree() { delete root_; }
@@ -39,7 +40,30 @@ MonteCarloTreeNode *CudaMctsCheckers::MonteCarloTree::SelectNode()
 
 std::vector<MonteCarloTreeNode *> MonteCarloTree::ExpandNode(MonteCarloTreeNode *node)
 {
-    return {};  // TODO
+    MoveGenerationOutput output;
+    if (node->turn_ == Turn::kWhite) {
+        output = MoveGenerator::GenerateMovesForPlayerCpu<BoardCheckType::kWhite>(node->board_);
+    } else {
+        output = MoveGenerator::GenerateMovesForPlayerCpu<BoardCheckType::kBlack>(node->board_);
+    }
+
+    for (u32 i = 0; i < Move::kNumMoveArrayForPlayerSize; ++i) {
+        if (output.possible_moves[i] != Move::kInvalidMove) {
+            Board new_board = node->board_;
+            if (node->turn_ == Turn::kWhite) {
+                new_board.MovePiece<BoardCheckType::kWhite>(
+                    Move::DecodeOriginIndex(output.possible_moves, output.possible_moves[i]),
+                    output.possible_moves[i]
+                );
+            } else {
+                new_board.MovePiece<BoardCheckType::kBlack>(
+                    Move::DecodeOriginIndex(output.possible_moves, output.possible_moves[i]),
+                    output.possible_moves[i]
+                );
+            }
+            node->children_[output.possible_moves[i]] = new MonteCarloTreeNode(new_board, node);
+        }
+    }
 }
 
 std::vector<SimulationResult> MonteCarloTree::SimulateNodes(std::vector<MonteCarloTreeNode *> nodes)
@@ -75,8 +99,11 @@ Move::Type MonteCarloTree::Run(f32 time)
 
 f32 MonteCarloTree::WinRate(MonteCarloTreeNode *node) { return (f32)node->score_ / node->visits_; }
 
+MonteCarloTreeNode::MonteCarloTreeNode(Board board, Turn turn) : board_(board), turn_(turn) {}
 MonteCarloTreeNode::MonteCarloTreeNode(Board board, MonteCarloTreeNode *parent)
-    : board_(board), parent_(parent)
+    : board_(board),
+      parent_(parent),
+      turn_(parent->turn_ == Turn::kWhite ? Turn::kBlack : Turn::kWhite)
 {
 }
 

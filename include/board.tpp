@@ -6,11 +6,17 @@
 #include <cpp_defines.hpp>
 #include <move.hpp>
 #include <types.hpp>
+#include "board.hpp"
 
 namespace CudaMctsCheckers
 {
+constexpr Board::IndexType Board::ParityOffset(RowParity parity)
+{
+    return parity == RowParity::kEven ? -1 : 0;
+}
+
 template <BoardCheckType type>
-constexpr BoardCheckType GetOppositeType()
+constexpr BoardCheckType Board::GetOppositeType()
 {
     switch (type) {
         case BoardCheckType::kWhite:
@@ -122,6 +128,74 @@ FORCE_INLINE bool Board::PieceReachedEnd(IndexType index) const
     }
 }
 
+FORCE_INLINE bool Board::IsAtLeftEdge(IndexType index)
+{
+    assert(index != kInvalidIndex);
+    assert(index < kSizeTotal);
+    return index % kEdgeLength == 0;
+}
+
+FORCE_INLINE bool Board::IsAtRightEdge(IndexType index)
+{
+    assert(index != kInvalidIndex);
+    assert(index < kSizeTotal);
+    return index % kEdgeLength == kEdgeLength - 1;
+}
+
+FORCE_INLINE Board::IndexType Board::InvalidateOutBoundsIndex(IndexType index)
+{
+    return index >= kSizeTotal ? kInvalidIndex
+                               : index;  // Going sub zero will wrap around so this is correct
+}
+
+FORCE_INLINE RowParity Board::GetRowParity(IndexType index)
+{
+    assert(index != kInvalidIndex);
+    assert(index < kSizeTotal);
+    return (index % kEdgeLength) >= kHalfBoardEdgeLength ? RowParity::kOdd : RowParity::kEven;
+}
+
+template <MoveDirection direction>
+FORCE_INLINE Board::IndexType Board::GetRelativeMoveIndex(IndexType index) const
+{
+    assert(index != kInvalidIndex);
+    assert(index < kSizeTotal);
+
+    if (direction == MoveDirection::kDownLeft || direction == MoveDirection::kUpLeft) {
+        if (IsAtLeftEdge(index)) {
+            return kInvalidIndex;
+        }
+    }
+
+    if (direction == MoveDirection::kDownRight || direction == MoveDirection::kUpRight) {
+        if (IsAtRightEdge(index)) {
+            return kInvalidIndex;
+        }
+    }
+
+    switch (direction) {
+        case MoveDirection::kUpLeft:
+            return InvalidateOutBoundsIndex(
+                index - kHalfBoardEdgeLength + ParityOffset(GetRowParity(index))
+            );
+        case MoveDirection::kUpRight:
+            return InvalidateOutBoundsIndex(
+                index - kHalfBoardEdgeLength + ParityOffset(GetRowParity(index)) + 1
+            );
+        case MoveDirection::kDownLeft:
+            return InvalidateOutBoundsIndex(
+                index + kHalfBoardEdgeLength + ParityOffset(GetRowParity(index))
+            );
+        case MoveDirection::kDownRight:
+            return InvalidateOutBoundsIndex(
+                index + kHalfBoardEdgeLength + ParityOffset(GetRowParity(index)) + 1
+            );
+        default:
+            assert(false);
+            return kInvalidIndex;
+    }
+}
+
 template <BoardCheckType type>
 FORCE_INLINE Board::IndexType Board::GetPieceLeftMoveIndex(IndexType index) const
 {
@@ -130,19 +204,11 @@ FORCE_INLINE Board::IndexType Board::GetPieceLeftMoveIndex(IndexType index) cons
     assert(index != kInvalidIndex);
     assert(index < kSizeTotal);
 
-    if (index % kEdgeLength == 0) {  // Left edge
-        return kInvalidIndex;
-    }
-
     switch (type) {
         case BoardCheckType::kWhite:
-            if (!PieceReachedEnd<type>(index)) {
-                return index + kHalfBoardEdgeLength - 1;
-            }
+            return GetRelativeMoveIndex<MoveDirection::kUpLeft>(index);
         case BoardCheckType::kBlack:
-            if (!PieceReachedEnd<type>(index)) {
-                return index - kHalfBoardEdgeLength - 1;
-            }
+            return GetRelativeMoveIndex<MoveDirection::kDownLeft>(index);
         default:
             assert(false);
             return kInvalidIndex;
@@ -157,19 +223,11 @@ FORCE_INLINE Board::IndexType Board::GetPieceRightMoveIndex(IndexType index) con
     assert(index != kInvalidIndex);
     assert(index < kSizeTotal);
 
-    if (index % kEdgeLength == kEdgeLength - 1) {  // Right edge
-        return kInvalidIndex;
-    }
-
     switch (type) {
         case BoardCheckType::kWhite:
-            if (!PieceReachedEnd<type>(index)) {
-                return index + kHalfBoardEdgeLength + 1;
-            }
+            return GetRelativeMoveIndex<MoveDirection::kUpRight>(index);
         case BoardCheckType::kBlack:
-            if (!PieceReachedEnd<type>(index)) {
-                return index - kHalfBoardEdgeLength + 1;
-            }
+            return GetRelativeMoveIndex<MoveDirection::kDownRight>(index);
         default:
             assert(false);
             return kInvalidIndex;

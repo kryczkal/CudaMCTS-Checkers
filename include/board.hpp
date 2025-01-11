@@ -4,12 +4,13 @@
 #include <bitset>
 #include <cassert>
 #include <cpp_defines.hpp>
+#include <move_direction.hpp>
 #include <types.hpp>
-
-enum class BoardCheckType { kWhite, kBlack, kKings, kAll };
 
 namespace CudaMctsCheckers
 {
+enum class BoardCheckType { kWhite, kBlack, kKings, kAll };
+enum class RowParity { kEven, kOdd };
 
 struct PACK Board {
     using HalfBoard = u32;
@@ -29,9 +30,11 @@ struct PACK Board {
     //------------------------------------------------------------------------------//
     //                                    Fields                                    //
     //------------------------------------------------------------------------------//
-    HalfBoard white_pieces;  // Bitset of white pieces
-    HalfBoard black_pieces;  // Bitset of black pieces
+    HalfBoard white_pieces;  // Bitset of white pieces (starting from bottom)
+    HalfBoard black_pieces;  // Bitset of black pieces (starting from top)
     HalfBoard kings;         // Bitset of kings
+
+    static constexpr IndexType ParityOffset(RowParity parity);
 
     template <BoardCheckType type>
     static constexpr BoardCheckType GetOppositeType();
@@ -51,6 +54,11 @@ struct PACK Board {
     template <BoardCheckType type>
     FORCE_INLINE bool PieceReachedEnd(IndexType index) const;
 
+    static FORCE_INLINE bool IsAtLeftEdge(IndexType index);
+    static FORCE_INLINE bool IsAtRightEdge(IndexType index);
+    static FORCE_INLINE RowParity GetRowParity(IndexType index);
+    static FORCE_INLINE IndexType InvalidateOutBoundsIndex(IndexType index);
+
     // TODO: This didn't take into account i operate on a half board and not a full board
     // This means going every other row is misaligned by 1
     // Example:
@@ -58,6 +66,9 @@ struct PACK Board {
     //  x x x x
     // x x x x x
     // So all my index calculations are off
+
+    template <MoveDirection direction>
+    FORCE_INLINE IndexType GetRelativeMoveIndex(IndexType index) const;
 
     template <BoardCheckType type>
     FORCE_INLINE IndexType GetRelativeTopLeftIndex(IndexType index) const;

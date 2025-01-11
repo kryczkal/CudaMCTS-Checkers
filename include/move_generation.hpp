@@ -6,7 +6,7 @@
 namespace CudaMctsCheckers
 {
 
-struct MoveGenerationOutput {
+struct PACK MoveGenerationOutput {
     Move::MoveArrayForPlayer possible_moves;
     bool detected_capture;
 };
@@ -29,6 +29,12 @@ class MoveGenerator
     //------------------------------------------------------------------------------//
     template <BoardCheckType type>
     static MoveGenerationOutput GenerateMovesForPlayerCpu(const Board &board);
+
+    template <BoardCheckType type, MoveDirection direction>
+    static void GenerateMovesDiagonalCpu(
+        const Board &board, MoveGenerationOutput &output, Board::IndexType index,
+        Board::IndexType &move_index
+    );
 
     //------------------------------------------------------------------------------//
     //                               Public Variables                               //

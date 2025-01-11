@@ -13,6 +13,8 @@
 namespace CudaMctsCheckers
 {
 
+enum class Turn { kWhite, kBlack };
+
 struct PACK SimulationResult {
     f32 score;
     u32 visits;
@@ -75,7 +77,8 @@ class MonteCarloTreeNode
     //------------------------------------------------------------------------------//
     //                        Class Creation and Destruction                        //
     //------------------------------------------------------------------------------//
-    explicit MonteCarloTreeNode(Board board, MonteCarloTreeNode *parent = nullptr);
+    explicit MonteCarloTreeNode(Board board, Turn turn);
+    explicit MonteCarloTreeNode(Board board, MonteCarloTreeNode *parent);
 
     ~MonteCarloTreeNode();
 
@@ -89,6 +92,7 @@ class MonteCarloTreeNode
     //------------------------------------------------------------------------------//
     size_t visits_ = 0;  // Number of times the node has been visited
     f32 score_     = 0;  // Score of the node
+    Turn turn_;
 
     private:
     //------------------------------------------------------------------------------//
