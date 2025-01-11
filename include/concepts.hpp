@@ -1,6 +1,8 @@
 #ifndef CUDA_MCTS_CHECKRS_INCLUDE_CONCEPTS_HPP_
 #define CUDA_MCTS_CHECKRS_INCLUDE_CONCEPTS_HPP_
 
+#include <concepts>
+
 namespace CudaMctsCheckers
 {
 
