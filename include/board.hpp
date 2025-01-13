@@ -34,7 +34,7 @@ struct PACK Board {
     HalfBoard black_pieces;  // Bitset of black pieces (starting from top)
     HalfBoard kings;         // Bitset of kings
 
-    static constexpr IndexType ParityOffset(RowParity parity);
+    static constexpr i8 ParityOffset(RowParity parity);
 
     template <BoardCheckType type>
     static constexpr BoardCheckType GetOppositeType();
@@ -59,28 +59,8 @@ struct PACK Board {
     static FORCE_INLINE RowParity GetRowParity(IndexType index);
     static FORCE_INLINE IndexType InvalidateOutBoundsIndex(IndexType index);
 
-    // TODO: This didn't take into account i operate on a half board and not a full board
-    // This means going every other row is misaligned by 1
-    // Example:
-    // x x x x x
-    //  x x x x
-    // x x x x x
-    // So all my index calculations are off
-
     template <MoveDirection direction>
     FORCE_INLINE IndexType GetRelativeMoveIndex(IndexType index) const;
-
-    template <BoardCheckType type>
-    FORCE_INLINE IndexType GetRelativeTopLeftIndex(IndexType index) const;
-
-    template <BoardCheckType type>
-    FORCE_INLINE IndexType GetRelativeTopRightIndex(IndexType index) const;
-
-    template <BoardCheckType type>
-    FORCE_INLINE IndexType GetRelativeBottomLeftIndex(IndexType index) const;
-
-    template <BoardCheckType type>
-    FORCE_INLINE IndexType GetRelativeBottomRightIndex(IndexType index) const;
 
     template <BoardCheckType type>
     FORCE_INLINE IndexType GetPieceLeftMoveIndex(IndexType index) const;

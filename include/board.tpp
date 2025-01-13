@@ -10,7 +10,7 @@
 
 namespace CudaMctsCheckers
 {
-constexpr Board::IndexType Board::ParityOffset(RowParity parity)
+constexpr i8 Board::ParityOffset(RowParity parity)
 {
     return parity == RowParity::kEven ? -1 : 0;
 }
@@ -144,7 +144,7 @@ FORCE_INLINE bool Board::IsAtRightEdge(IndexType index)
 
 FORCE_INLINE Board::IndexType Board::InvalidateOutBoundsIndex(IndexType index)
 {
-    return index >= kSizeTotal ? kInvalidIndex
+    return index >= kHalfBoardSize ? kInvalidIndex
                                : index;  // Going sub zero will wrap around so this is correct
 }
 
