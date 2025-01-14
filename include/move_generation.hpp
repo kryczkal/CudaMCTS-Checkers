@@ -7,8 +7,9 @@ namespace CudaMctsCheckers
 {
 
 struct PACK MoveGenerationOutput {
+    static constexpr u32 CaptureFlagIndex = Move::kNumMoveArrayForPlayerSize;
     Move::MoveArrayForPlayer possible_moves;
-    bool detected_capture;
+    std::bitset<Move::kNumMoveArrayForPlayerSize + 1> capture_moves; // Last bit is for detected capture
 };
 
 class MoveGenerator
@@ -33,7 +34,7 @@ class MoveGenerator
     template <BoardCheckType type, MoveDirection direction>
     static void GenerateMovesDiagonalCpu(
         const Board &board, MoveGenerationOutput &output, Board::IndexType index,
-        Board::IndexType &move_index
+        Board::IndexType &current_move_index
     );
 
     //------------------------------------------------------------------------------//

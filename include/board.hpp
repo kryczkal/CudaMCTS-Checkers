@@ -12,7 +12,8 @@ namespace CudaMctsCheckers
 enum class BoardCheckType { kWhite, kBlack, kKings, kAll };
 enum class RowParity { kEven, kOdd };
 
-struct PACK Board {
+class PACK Board {
+public:
     using HalfBoard = u32;
     using IndexType = u8;
     //------------------------------------------------------------------------------//
@@ -25,7 +26,7 @@ struct PACK Board {
         kEdgeLength / 2;                                    // Half board size in the x direction
     static constexpr u8 kDiagonalSize        = 8;           // Size of the diagonal
     static constexpr u8 kNumPiecesPerPlayer  = 12;          // Number of pieces per player
-    static constexpr IndexType kInvalidIndex = kSizeTotal;  // Invalid index
+    static constexpr IndexType kInvalidIndex = kHalfBoardSize;  // Invalid index
 
     //------------------------------------------------------------------------------//
     //                                    Fields                                    //
@@ -34,6 +35,14 @@ struct PACK Board {
     HalfBoard black_pieces;  // Bitset of black pieces (starting from top)
     HalfBoard kings;         // Bitset of kings
 
+    //------------------------------------------------------------------------------//
+    //                                Constructors                                  //
+    //------------------------------------------------------------------------------//
+    Board();
+
+    //------------------------------------------------------------------------------//
+    //                                Public Methods                                //
+    //------------------------------------------------------------------------------//
     static constexpr i8 ParityOffset(RowParity parity);
 
     template <BoardCheckType type>
@@ -67,6 +76,11 @@ struct PACK Board {
 
     template <BoardCheckType type>
     FORCE_INLINE IndexType GetPieceRightMoveIndex(IndexType index) const;
+
+    //------------------------------------------------------------------------------//
+    //                                Friend Functions                              //
+    //------------------------------------------------------------------------------//
+    friend std::ostream& operator<<(std::ostream& os, const Board& board);
 };
 
 }  // namespace CudaMctsCheckers

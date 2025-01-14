@@ -29,29 +29,36 @@ constexpr BoardCheckType Board::GetOppositeType()
 template <BoardCheckType type>
 FORCE_INLINE bool Board::IsPieceAt(IndexType index) const
 {
-    assert(index != kInvalidIndex);
-    assert(index < kSizeTotal);
+    assert(index <= kHalfBoardSize);
 
+    HalfBoard pieces;
     switch (type) {
         case BoardCheckType::kWhite:
-            return white_pieces & (1 << index);
+            pieces = white_pieces;
+            break;
         case BoardCheckType::kBlack:
-            return black_pieces & (1 << index);
+            pieces = black_pieces;
+            break;
         case BoardCheckType::kKings:
-            return kings & (1 << index);
+            pieces = kings;
+            break;
         case BoardCheckType::kAll:
-            return (white_pieces | black_pieces) & (1 << index);
+            pieces = white_pieces | black_pieces;
+            break;
         default:
             assert(false);
             return false;
     }
+    HalfBoard mask = 1 << (index & ~kInvalidIndex);
+    HalfBoard result = (pieces & mask);
+    return result != 0;
 }
 
 template <BoardCheckType type>
 FORCE_INLINE void Board::SetPieceAt(IndexType index)
 {
     assert(index != kInvalidIndex);
-    assert(index < kSizeTotal);
+    assert(index < kHalfBoardSize);
     switch (type) {
         case BoardCheckType::kWhite:
             white_pieces |= (1 << index);
@@ -76,7 +83,7 @@ template <BoardCheckType type>
 FORCE_INLINE void Board::UnsetPieceAt(IndexType index)
 {
     assert(index != kInvalidIndex);
-    assert(index < kSizeTotal);
+    assert(index < kHalfBoardSize);
     switch (type) {
         case BoardCheckType::kWhite:
             white_pieces &= ~(1 << index);
@@ -113,7 +120,7 @@ FORCE_INLINE bool Board::PieceReachedEnd(IndexType index) const
     assert(type != BoardCheckType::kAll);
     assert(type != BoardCheckType::kKings);
     assert(index != kInvalidIndex);
-    assert(index < kSizeTotal);
+    assert(index < kHalfBoardSize);
     switch (type) {
         case BoardCheckType::kWhite:
             return index < kHalfBoardEdgeLength;
@@ -128,14 +135,14 @@ FORCE_INLINE bool Board::PieceReachedEnd(IndexType index) const
 FORCE_INLINE bool Board::IsAtLeftEdge(IndexType index)
 {
     assert(index != kInvalidIndex);
-    assert(index < kSizeTotal);
+    assert(index < kHalfBoardSize);
     return index % kEdgeLength == 0;
 }
 
 FORCE_INLINE bool Board::IsAtRightEdge(IndexType index)
 {
     assert(index != kInvalidIndex);
-    assert(index < kSizeTotal);
+    assert(index < kHalfBoardSize);
     return index % kEdgeLength == kEdgeLength - 1;
 }
 
@@ -148,15 +155,15 @@ FORCE_INLINE Board::IndexType Board::InvalidateOutBoundsIndex(IndexType index)
 FORCE_INLINE RowParity Board::GetRowParity(IndexType index)
 {
     assert(index != kInvalidIndex);
-    assert(index < kSizeTotal);
+    assert(index < kHalfBoardSize);
     return (index % kEdgeLength) >= kHalfBoardEdgeLength ? RowParity::kOdd : RowParity::kEven;
 }
 
-template <MoveDirection direction>
+    template <MoveDirection direction>
 FORCE_INLINE Board::IndexType Board::GetRelativeMoveIndex(IndexType index) const
 {
     assert(index != kInvalidIndex);
-    assert(index < kSizeTotal);
+    assert(index < kHalfBoardSize);
 
     if (direction == MoveDirection::kDownLeft || direction == MoveDirection::kUpLeft) {
         if (IsAtLeftEdge(index)) {
@@ -193,13 +200,17 @@ FORCE_INLINE Board::IndexType Board::GetRelativeMoveIndex(IndexType index) const
     }
 }
 
+/**
+ * Get the index of the field the piece would move to if it moved left.
+ * This does not check if the move is valid.
+ */
 template <BoardCheckType type>
 FORCE_INLINE Board::IndexType Board::GetPieceLeftMoveIndex(IndexType index) const
 {
     assert(type != BoardCheckType::kAll);
     assert(type != BoardCheckType::kKings);
     assert(index != kInvalidIndex);
-    assert(index < kSizeTotal);
+    assert(index < kHalfBoardSize);
 
     switch (type) {
         case BoardCheckType::kWhite:
@@ -212,13 +223,17 @@ FORCE_INLINE Board::IndexType Board::GetPieceLeftMoveIndex(IndexType index) cons
     }
 }
 
+/**
+    * Get the index of the field the piece would move to if it moved left.
+    * This does not check if the move is valid.
+    */
 template <BoardCheckType type>
 FORCE_INLINE Board::IndexType Board::GetPieceRightMoveIndex(IndexType index) const
 {
     assert(type != BoardCheckType::kAll);
     assert(type != BoardCheckType::kKings);
     assert(index != kInvalidIndex);
-    assert(index < kSizeTotal);
+    assert(index < kHalfBoardSize);
 
     switch (type) {
         case BoardCheckType::kWhite:
