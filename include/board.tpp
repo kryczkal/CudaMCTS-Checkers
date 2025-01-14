@@ -49,7 +49,7 @@ FORCE_INLINE bool Board::IsPieceAt(IndexType index) const
             assert(false);
             return false;
     }
-    HalfBoard mask = 1 << (index & ~kInvalidIndex);
+    HalfBoard mask   = 1 << (index & ~kInvalidIndex);
     HalfBoard result = (pieces & mask);
     return result != 0;
 }
@@ -159,7 +159,7 @@ FORCE_INLINE RowParity Board::GetRowParity(IndexType index)
     return (index % kEdgeLength) >= kHalfBoardEdgeLength ? RowParity::kOdd : RowParity::kEven;
 }
 
-    template <MoveDirection direction>
+template <MoveDirection direction>
 FORCE_INLINE Board::IndexType Board::GetRelativeMoveIndex(IndexType index) const
 {
     assert(index != kInvalidIndex);
@@ -224,9 +224,9 @@ FORCE_INLINE Board::IndexType Board::GetPieceLeftMoveIndex(IndexType index) cons
 }
 
 /**
-    * Get the index of the field the piece would move to if it moved left.
-    * This does not check if the move is valid.
-    */
+ * Get the index of the field the piece would move to if it moved left.
+ * This does not check if the move is valid.
+ */
 template <BoardCheckType type>
 FORCE_INLINE Board::IndexType Board::GetPieceRightMoveIndex(IndexType index) const
 {

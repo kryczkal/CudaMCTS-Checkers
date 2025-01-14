@@ -47,7 +47,7 @@ std::vector<MonteCarloTreeNode *> MonteCarloTree::ExpandNode(MonteCarloTreeNode 
         output = MoveGenerator::GenerateMovesForPlayerCpu<BoardCheckType::kBlack>(node->board_);
     }
 
-    for (u32 i = 0; i < Move::kNumMoveArrayForPlayerSize; ++i) {
+    for (u32 i = 0; i < Move::kNumMoveArrayForPlayerSize; ++i) {  // TODO: Skip invalid moves
         if (output.possible_moves[i] != Move::kInvalidMove) {
             Board new_board = node->board_;
             if (node->turn_ == Turn::kWhite) {

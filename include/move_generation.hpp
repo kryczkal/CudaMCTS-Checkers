@@ -9,7 +9,8 @@ namespace CudaMctsCheckers
 struct PACK MoveGenerationOutput {
     static constexpr u32 CaptureFlagIndex = Move::kNumMoveArrayForPlayerSize;
     Move::MoveArrayForPlayer possible_moves;
-    std::bitset<Move::kNumMoveArrayForPlayerSize + 1> capture_moves; // Last bit is for detected capture
+    std::bitset<Move::kNumMoveArrayForPlayerSize + 1>
+        capture_moves;  // Last bit is for detected capture
 };
 
 class MoveGenerator

@@ -13,10 +13,10 @@ int main()
     board.SetPieceAt<CudaMctsCheckers::BoardCheckType::kWhite>(3);  // (0,7)
 
     // Place black pieces
-    board.SetPieceAt<CudaMctsCheckers::BoardCheckType::kBlack>(28); // (7,1)
-    board.SetPieceAt<CudaMctsCheckers::BoardCheckType::kBlack>(29); // (7,3)
-    board.SetPieceAt<CudaMctsCheckers::BoardCheckType::kBlack>(30); // (7,5)
-    board.SetPieceAt<CudaMctsCheckers::BoardCheckType::kBlack>(31); // (7,7)
+    board.SetPieceAt<CudaMctsCheckers::BoardCheckType::kBlack>(28);  // (7,1)
+    board.SetPieceAt<CudaMctsCheckers::BoardCheckType::kBlack>(29);  // (7,3)
+    board.SetPieceAt<CudaMctsCheckers::BoardCheckType::kBlack>(30);  // (7,5)
+    board.SetPieceAt<CudaMctsCheckers::BoardCheckType::kBlack>(31);  // (7,7)
 
     // Promote a white piece to king
     board.SetPieceAt<CudaMctsCheckers::BoardCheckType::kKings>(2);
@@ -29,4 +29,5 @@ int main()
     // Initialize Monte Carlo Tree (optional)
     CudaMctsCheckers::MonteCarloTree tree(board);
 
-    return 0;}
+    return 0;
+}

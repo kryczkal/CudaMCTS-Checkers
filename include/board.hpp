@@ -12,8 +12,9 @@ namespace CudaMctsCheckers
 enum class BoardCheckType { kWhite, kBlack, kKings, kAll };
 enum class RowParity { kEven, kOdd };
 
-class PACK Board {
-public:
+class PACK Board
+{
+    public:
     using HalfBoard = u32;
     using IndexType = u8;
     //------------------------------------------------------------------------------//
@@ -23,9 +24,9 @@ public:
     static constexpr u8 kSizeTotal     = kEdgeLength * kEdgeLength;  // Total board size
     static constexpr u8 kHalfBoardSize = kSizeTotal / 2;             // Board size used by pieces
     static constexpr u8 kHalfBoardEdgeLength =
-        kEdgeLength / 2;                                    // Half board size in the x direction
-    static constexpr u8 kDiagonalSize        = 8;           // Size of the diagonal
-    static constexpr u8 kNumPiecesPerPlayer  = 12;          // Number of pieces per player
+        kEdgeLength / 2;                            // Half board size in the x direction
+    static constexpr u8 kDiagonalSize        = 8;   // Size of the diagonal
+    static constexpr u8 kNumPiecesPerPlayer  = 12;  // Number of pieces per player
     static constexpr IndexType kInvalidIndex = kHalfBoardSize;  // Invalid index
 
     //------------------------------------------------------------------------------//

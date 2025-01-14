@@ -24,22 +24,18 @@ MoveGenerationOutput MoveGenerator::GenerateMovesForPlayerCpu(const Board &board
     for (Board::IndexType i = 0; i < Board::kHalfBoardSize;
          ++i) {                          // TODO: count leading zeros __builtin_clz
         if (board.IsPieceAt<type>(i)) {  // TODO: Just do 2 loops for pieces, and for kings
-            Board::IndexType current_move_index  = i * Move::kNumMaxPossibleMovesPerPiece;
+            Board::IndexType current_move_index = i * Move::kNumMaxPossibleMovesPerPiece;
             if (!board.IsPieceAt<BoardCheckType::kKings>(i)) {
                 // Try to move forward
                 Board::IndexType left_move_index  = board.GetPieceLeftMoveIndex<type>(i);
                 Board::IndexType right_move_index = board.GetPieceRightMoveIndex<type>(i);
-                left_move_index = board.IsPieceAt<type>(left_move_index)
-                                      ? Board::kInvalidIndex
-                                      : left_move_index;
-                right_move_index = board.IsPieceAt<type>(right_move_index)
-                                       ? Board::kInvalidIndex
-                                       : right_move_index;
-                output.possible_moves
-                    [current_move_index + Move::PieceMoveIndexes::kLeft] =
+                left_move_index =
+                    board.IsPieceAt<type>(left_move_index) ? Board::kInvalidIndex : left_move_index;
+                right_move_index = board.IsPieceAt<type>(right_move_index) ? Board::kInvalidIndex
+                                                                           : right_move_index;
+                output.possible_moves[current_move_index + Move::PieceMoveIndexes::kLeft] =
                     left_move_index;
-                output.possible_moves
-                    [current_move_index + Move::PieceMoveIndexes::kRight] =
+                output.possible_moves[current_move_index + Move::PieceMoveIndexes::kRight] =
                     right_move_index;
 
                 // Detect capture
@@ -48,36 +44,34 @@ MoveGenerationOutput MoveGenerator::GenerateMovesForPlayerCpu(const Board &board
                     !board.IsPieceAt<BoardCheckType::kAll>(
                         board.GetPieceLeftMoveIndex<type>(left_move_index)
                     )) {
-                    output.possible_moves
-                        [current_move_index + Move::PieceMoveIndexes::kLeft] =
+                    output.possible_moves[current_move_index + Move::PieceMoveIndexes::kLeft] =
                         board.GetPieceLeftMoveIndex<type>(left_move_index);
                     output.capture_moves[current_move_index + Move::PieceMoveIndexes::kLeft] = true;
-                    output.capture_moves[MoveGenerationOutput::CaptureFlagIndex] = true;
+                    output.capture_moves[MoveGenerationOutput::CaptureFlagIndex]             = true;
                 }
                 if (right_move_index != Board::kInvalidIndex &&
                     board.IsPieceAt<Board::GetOppositeType<type>()>(right_move_index) &&
                     !board.IsPieceAt<BoardCheckType::kAll>(
                         board.GetPieceRightMoveIndex<type>(right_move_index)
                     )) {
-                    output.possible_moves
-                        [current_move_index +
-                         Move::PieceMoveIndexes::kRight] =
+                    output.possible_moves[current_move_index + Move::PieceMoveIndexes::kRight] =
                         board.GetPieceRightMoveIndex<type>(right_move_index);
-                    output.capture_moves[current_move_index + Move::PieceMoveIndexes::kRight] = true;
+                    output.capture_moves[current_move_index + Move::PieceMoveIndexes::kRight] =
+                        true;
                     output.capture_moves[MoveGenerationOutput::CaptureFlagIndex] = true;
                 }
             } else {
                 GenerateMovesDiagonalCpu<type, MoveDirection::kUpLeft>(
-                        board, output, i, current_move_index
+                    board, output, i, current_move_index
                 );
                 GenerateMovesDiagonalCpu<type, MoveDirection::kUpRight>(
-                        board, output, i, current_move_index
+                    board, output, i, current_move_index
                 );
                 GenerateMovesDiagonalCpu<type, MoveDirection::kDownLeft>(
-                        board, output, i, current_move_index
+                    board, output, i, current_move_index
                 );
                 GenerateMovesDiagonalCpu<type, MoveDirection::kDownRight>(
-                        board, output, i, current_move_index
+                    board, output, i, current_move_index
                 );
             }
         }
@@ -93,7 +87,7 @@ void MoveGenerator::GenerateMovesDiagonalCpu(
 )
 {
     Board::IndexType board_index = board.template GetRelativeMoveIndex<direction>(index);
-    bool is_capturing = false;
+    bool is_capturing            = false;
     while (board_index != Board::kInvalidIndex) {
         if (board.IsPieceAt<Board::GetOppositeType<type>()>(board_index)) {
             // Try to capture
@@ -101,14 +95,14 @@ void MoveGenerator::GenerateMovesDiagonalCpu(
             if (board.IsPieceAt<BoardCheckType::kAll>(board_index)) {
                 break;
             }
-            output.possible_moves[current_move_index] = board_index;
-            output.capture_moves[current_move_index] = true;
+            output.possible_moves[current_move_index]                    = board_index;
+            output.capture_moves[current_move_index]                     = true;
             output.capture_moves[MoveGenerationOutput::CaptureFlagIndex] = true;
-            is_capturing = true;
+            is_capturing                                                 = true;
             current_move_index++;
         } else if (!board.IsPieceAt<type>(board_index)) {
             output.possible_moves[current_move_index] = board_index;
-            output.capture_moves[current_move_index] = is_capturing;
+            output.capture_moves[current_move_index]  = is_capturing;
             current_move_index++;
         } else {
             break;
