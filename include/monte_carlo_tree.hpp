@@ -58,6 +58,7 @@ class MonteCarloTree
     void Backpropagate(
         std::vector<MonteCarloTreeNode *> &nodes, const std::vector<SimulationResult> &results
     );
+    GameResult GetWantedResult() const;
 
     //////////////////////////////////////////////////////////////////////////////////
     template <MaxComparable EvalType, EvalFunction<EvalType> auto EvalFunc>

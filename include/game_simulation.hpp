@@ -28,7 +28,9 @@ class GameSimulation
     //                                Public Methods                                //
     //------------------------------------------------------------------------------//
 
-    static f32 RunGame(Board &board, Turn turn);
+    static f32 RunGame(Board &board, Turn turn, GameResult wanted_result);
+
+    static f32 CalcGameScore(const GameResult &wanted_result, const GameResult &result);
 };
 
 }  // namespace CudaMctsCheckers

@@ -415,9 +415,10 @@ TEST_F(BoardTest, ApplyMove_KingMove)
     board_.SetPieceAt<BoardCheckType::kWhite>(0);
     board_.PromoteAll();
     EXPECT_TRUE(board_.IsPieceAt<BoardCheckType::kKings>(0));
+    EXPECT_TRUE(board_.IsPieceAt<BoardCheckType::kWhite>(0));
 
     // Move the king from 0 to 5
-    board_.ApplyMove<BoardCheckType::kKings>(0, 5, false);
+    board_.ApplyMove<BoardCheckType::kWhite>(0, 5, false);
 
     // Verify the move
     EXPECT_FALSE(board_.IsPieceAt<BoardCheckType::kWhite>(0));

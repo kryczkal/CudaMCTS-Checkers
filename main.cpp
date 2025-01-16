@@ -1,34 +1,34 @@
 #include <iostream>
-#include <monte_carlo_tree.hpp>
-int main()
+#include "checkers_game.hpp"
+#include "cli_gui.hpp"
+
+using namespace CudaMctsCheckers;
+
+int main(int argc, char** argv)
 {
-    CudaMctsCheckers::Board board;
+    // TODO: Bug: Kings stop being kings
+    // TODO: Bug: Not working multi-capture
+    // TODO: Bug: Overlapping tiles possible ???
+    // TODO: Bug: Possibly counting wins in reverse
 
-    // Example setup: Initialize some pieces
-    // Place white pieces
-    board.SetPieceAt<CudaMctsCheckers::BoardCheckType::kWhite>(28);  // (0,1)
-    board.SetPieceAt<CudaMctsCheckers::BoardCheckType::kWhite>(29);  // (0,3)
-    board.SetPieceAt<CudaMctsCheckers::BoardCheckType::kWhite>(30);  // (0,5)
-    board.SetPieceAt<CudaMctsCheckers::BoardCheckType::kWhite>(31);  // (0,7)
+    std::string output_file;
+    if (argc > 1) {
+        output_file = argv[1];
+    }
 
-    // Place black pieces
-    board.SetPieceAt<CudaMctsCheckers::BoardCheckType::kBlack>(0);  // (7,1)
-    board.SetPieceAt<CudaMctsCheckers::BoardCheckType::kBlack>(1);  // (7,3)
-    board.SetPieceAt<CudaMctsCheckers::BoardCheckType::kBlack>(2);  // (7,5)
-    board.SetPieceAt<CudaMctsCheckers::BoardCheckType::kBlack>(3);  // (7,7)
+    // Create a CLI-based GUI
+    auto gui = std::make_shared<CliCheckersGui>();
 
-    // Promote a white piece to king
-    board.SetPieceAt<CudaMctsCheckers::BoardCheckType::kKings>(2);
+    // Create a CheckersGame with default setup (White=human)
+    CheckersGame game;
 
-    board.SetPieceAt<CudaMctsCheckers::BoardCheckType::kKings>(28);
+    // Attach GUI and set time limit
+    game.SetGui(gui);
+    game.SetTimeLimit(600.0f);
+    game.SetTimeLimitAi(5.0f);
 
-    // Print the board
-    std::cout << board;
-
-    CudaMctsCheckers::MonteCarloTree tree(board, CudaMctsCheckers::Turn::kWhite);
-    CudaMctsCheckers::TrieDecodedMoveAsPair best_move = tree.Run(1.f);
-    std::cout << "Best move: " << static_cast<u32>(best_move.first) << " -> "
-              << static_cast<u32>(best_move.second) << std::endl;
+    // Run the game
+    game.Play(output_file);
 
     return 0;
 }

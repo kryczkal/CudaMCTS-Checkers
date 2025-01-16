@@ -250,6 +250,7 @@ constexpr FORCE_INLINE Board::IndexType Board::GetPieceRightMoveIndex(IndexType 
 template <BoardCheckType type>
 FORCE_INLINE void Board::ApplyMove(IndexType from, IndexType to, bool is_caputre)
 {
+    assert(type != BoardCheckType::kKings);
     assert(type != BoardCheckType::kAll);
     assert(from != kInvalidIndex);
     assert(to != kInvalidIndex);

@@ -13,10 +13,7 @@ namespace CudaMctsCheckers
 
 MonteCarloTree::MonteCarloTree(CudaMctsCheckers::Board board, Turn turn)
 {
-    Turn RootTurn =
-        turn == Turn::kWhite ? Turn::kBlack : Turn::kWhite;  // Invert the turn for the root node
-                                                             // since the root node is the opponent
-    root_ = new MonteCarloTreeNode(board, RootTurn);
+    root_ = new MonteCarloTreeNode(board, turn);
 }
 
 MonteCarloTree::~MonteCarloTree() { delete root_; }
@@ -31,6 +28,10 @@ MonteCarloTreeNode *CudaMctsCheckers::MonteCarloTree::SelectNode()
         f32 best_score                 = -1.0f;
         MonteCarloTreeNode *best_child = nullptr;
         for (auto &child : current->children_) {
+            //            if (child.second->visits_ == 0) {
+            //                best_child = child.second;
+            //                break;
+            //            }
             f32 uct_score = child.second->UctScore();
             if (uct_score > best_score) {
                 best_score = uct_score;
@@ -86,7 +87,7 @@ std::vector<SimulationResult> MonteCarloTree::SimulateNodes(std::vector<MonteCar
     for (u32 i = 0; i < nodes.size(); ++i) {
         Board board      = nodes[i]->board_;
         Turn turn        = nodes[i]->turn_;
-        results[i].score = GameSimulation::RunGame(board, turn);
+        results[i].score = GameSimulation::RunGame(board, turn, GetWantedResult());
         results[i].visits++;
     }
     return results;
@@ -118,18 +119,54 @@ TrieDecodedMoveAsPair MonteCarloTree::Run(f32 time_seconds)
             break;
         }
 
-        MonteCarloTreeNode *node                         = SelectNode();
+        MonteCarloTreeNode *node = SelectNode();
+        now                      = std::chrono::system_clock::now();
+        elapsed                  = std::chrono::duration<f32>(now - start).count();
+
+        if (elapsed >= time_seconds) {
+            break;
+        }
         std::vector<MonteCarloTreeNode *> expanded_nodes = ExpandNode(node);
-        std::vector<SimulationResult> results            = SimulateNodes(expanded_nodes);
+        now                                              = std::chrono::system_clock::now();
+        elapsed = std::chrono::duration<f32>(now - start).count();
+
+        if (elapsed >= time_seconds) {
+            break;
+        }
+        std::vector<SimulationResult> results = SimulateNodes(expanded_nodes);
+        now                                   = std::chrono::system_clock::now();
+        elapsed                               = std::chrono::duration<f32>(now - start).count();
+
+        if (elapsed >= time_seconds) {
+            break;
+        }
         Backpropagate(expanded_nodes, results);
+        now     = std::chrono::system_clock::now();
+        elapsed = std::chrono::duration<f32>(now - start).count();
+
+        if (elapsed >= time_seconds) {
+            break;
+        }
     }
     TrieEncodedMove best_move = SelectBestMove<f32, &MonteCarloTree::WinRate>();
+    assert((best_move & 0x00FF) != Board::kInvalidIndex);
     return MonteCarloTreeNode::DecodeMove(best_move);
 }
 
-f32 MonteCarloTree::WinRate(MonteCarloTreeNode *node) { return (f32)node->score_ / node->visits_; }
+f32 MonteCarloTree::WinRate(MonteCarloTreeNode *node)
+{
+    return node->visits_ > 0 ? (f32)node->score_ / node->visits_ : 0;
+}
 
-MonteCarloTreeNode::MonteCarloTreeNode(Board board, Turn turn) : board_(board), turn_(turn) {}
+GameResult MonteCarloTree::GetWantedResult() const
+{
+    return root_->turn_ == Turn::kWhite ? GameResult::kWhiteWin : GameResult::kBlackWin;
+}
+
+MonteCarloTreeNode::MonteCarloTreeNode(Board board, Turn turn) : board_(board), turn_(turn)
+{
+    parent_ = nullptr;
+}
 MonteCarloTreeNode::MonteCarloTreeNode(Board board, MonteCarloTreeNode *parent)
     : board_(board),
       parent_(parent),

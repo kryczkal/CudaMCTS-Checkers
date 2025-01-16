@@ -24,3 +24,5 @@ target_link_libraries(${TESTS_EXEC_NAME} ${PROJECT_LIB_NAME})
 include(GoogleTest)
 gtest_discover_tests(${TESTS_EXEC_NAME})
 
+################################## Copying ###################################
+file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/game_histories DESTINATION ${CMAKE_CURRENT_BINARY_DIR})

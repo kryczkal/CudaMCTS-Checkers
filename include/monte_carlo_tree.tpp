@@ -14,7 +14,7 @@ TrieEncodedMove MonteCarloTree::SelectBestMove()
 {
     assert(root_ != nullptr);
 
-    TrieEncodedMove best_move = 0;
+    TrieEncodedMove best_move = (root_->children_.begin()->first);
     if (root_->children_.empty()) {
         return best_move;
     }
@@ -28,6 +28,7 @@ TrieEncodedMove MonteCarloTree::SelectBestMove()
             best_move  = child.first;
         }
     }
+    assert(best_move != Board::kInvalidIndex);
     return best_move;
 }
 
