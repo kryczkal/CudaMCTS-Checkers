@@ -18,4 +18,6 @@
 /* Declare a function as a static inline wrapper */
 #define WRAP_CALL static FORCE_INLINE
 
+#define MAYBE_UNUSED(x) (void)(x)
+
 #endif  // CUDA_MCTS_CHECKRS_INCLUDE_DEFINES_HPP_

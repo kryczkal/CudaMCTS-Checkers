@@ -3,17 +3,18 @@
 
 #include <cassert>
 #include <concepts.hpp>
+#include <iostream>
 #include <monte_carlo_tree.hpp>
 
 namespace CudaMctsCheckers
 {
 
 template <MaxComparable EvalType, EvalFunction<EvalType> auto EvalFunc>
-Move::Type MonteCarloTree::SelectBestMove()
+TrieEncodedMove MonteCarloTree::SelectBestMove()
 {
     assert(root_ != nullptr);
 
-    Move::Type best_move = 0;
+    TrieEncodedMove best_move = 0;
     if (root_->children_.empty()) {
         return best_move;
     }

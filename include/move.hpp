@@ -21,9 +21,9 @@ class Move
     using MoveArrayForPlayer                 = std::array<Type, kNumMoveArrayForPlayerSize>;
     static constexpr Move::Type kInvalidMove = Board::kInvalidIndex;
 
-    static FORCE_INLINE u32 DecodeOriginIndex(MoveArrayForPlayer& possible_moves, Type move)
+    static FORCE_INLINE u32 DecodeOriginIndex(const u32 index_in_moves_array)
     {
-        return move / kNumMaxPossibleMovesPerPiece;
+        return index_in_moves_array / kNumMaxPossibleMovesPerPiece;
     }
 };
 }  // namespace CudaMctsCheckers

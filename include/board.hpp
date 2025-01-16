@@ -7,10 +7,12 @@
 #include <move_direction.hpp>
 #include <types.hpp>
 
+class MoveGenerationOutput;
 namespace CudaMctsCheckers
 {
 enum class BoardCheckType { kWhite, kBlack, kKings, kAll };
 enum class RowParity { kEven, kOdd };
+enum class GameResult { kWhiteWin, kBlackWin, kDraw, kInProgress };
 
 class PACK Board
 {
@@ -35,6 +37,7 @@ class PACK Board
     HalfBoard white_pieces;  // Bitset of white pieces (starting from bottom)
     HalfBoard black_pieces;  // Bitset of black pieces (starting from top)
     HalfBoard kings;         // Bitset of kings
+    u8 time_from_non_reversible_move;
 
     //------------------------------------------------------------------------------//
     //                                Constructors                                  //
@@ -44,13 +47,14 @@ class PACK Board
     //------------------------------------------------------------------------------//
     //                                Public Methods                                //
     //------------------------------------------------------------------------------//
+
     static constexpr i8 ParityOffset(RowParity parity);
 
     template <BoardCheckType type>
     static constexpr BoardCheckType GetOppositeType();
 
     template <BoardCheckType type>
-    FORCE_INLINE bool IsPieceAt(IndexType index) const;
+    [[nodiscard]] FORCE_INLINE bool IsPieceAt(IndexType index) const;
 
     template <BoardCheckType type>
     FORCE_INLINE void SetPieceAt(IndexType index);
@@ -62,21 +66,39 @@ class PACK Board
     FORCE_INLINE void MovePiece(IndexType from, IndexType to);
 
     template <BoardCheckType type>
-    FORCE_INLINE bool PieceReachedEnd(IndexType index) const;
+    static constexpr FORCE_INLINE bool PieceReachedEnd(IndexType index);
 
-    static FORCE_INLINE bool IsAtLeftEdge(IndexType index);
-    static FORCE_INLINE bool IsAtRightEdge(IndexType index);
-    static FORCE_INLINE RowParity GetRowParity(IndexType index);
-    static FORCE_INLINE IndexType InvalidateOutBoundsIndex(IndexType index);
+    static constexpr FORCE_INLINE bool IsAtLeftEdge(IndexType index);
+    static constexpr FORCE_INLINE bool IsAtRightEdge(IndexType index);
+    static constexpr FORCE_INLINE RowParity GetRowParity(IndexType index);
+    static constexpr FORCE_INLINE IndexType InvalidateOutBoundsIndex(IndexType index);
 
     template <MoveDirection direction>
-    FORCE_INLINE IndexType GetRelativeMoveIndex(IndexType index) const;
+    static constexpr FORCE_INLINE IndexType GetRelativeMoveIndex(IndexType index);
 
     template <BoardCheckType type>
-    FORCE_INLINE IndexType GetPieceLeftMoveIndex(IndexType index) const;
+    static constexpr FORCE_INLINE IndexType GetPieceLeftMoveIndex(IndexType index);
 
     template <BoardCheckType type>
-    FORCE_INLINE IndexType GetPieceRightMoveIndex(IndexType index) const;
+    static constexpr FORCE_INLINE IndexType GetPieceRightMoveIndex(IndexType index);
+
+    template <BoardCheckType type>
+    FORCE_INLINE void ApplyMove(IndexType from, IndexType to, bool is_capture);
+
+    FORCE_INLINE void PromoteAll()
+    {
+        constexpr HalfBoard white_mask = (1u << kHalfBoardEdgeLength) - 1;
+        constexpr HalfBoard black_mask = ((1u << kHalfBoardEdgeLength) - 1)
+                                         << (kHalfBoardSize - kHalfBoardEdgeLength);
+        HalfBoard promotion;
+
+        promotion = white_pieces & white_mask;
+        kings |= promotion;
+        promotion = black_pieces & black_mask;
+        kings |= promotion;
+    }
+
+    [[nodiscard]] GameResult CheckGameResult() const;
 
     //------------------------------------------------------------------------------//
     //                                Friend Functions                              //

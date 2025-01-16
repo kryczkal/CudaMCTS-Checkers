@@ -2,6 +2,7 @@
 #define CUDA_MCTS_CHECKRS_INCLUDE_BOARD_TPP_
 
 #include <bitset>
+#include <capture_look_up_table.hpp>
 #include <cassert>
 #include <cpp_defines.hpp>
 #include <move.hpp>
@@ -115,7 +116,7 @@ FORCE_INLINE void Board::MovePiece(IndexType from, IndexType to)
 }
 
 template <BoardCheckType type>
-FORCE_INLINE bool Board::PieceReachedEnd(IndexType index) const
+constexpr FORCE_INLINE bool Board::PieceReachedEnd(IndexType index)
 {
     assert(type != BoardCheckType::kAll);
     assert(type != BoardCheckType::kKings);
@@ -132,27 +133,27 @@ FORCE_INLINE bool Board::PieceReachedEnd(IndexType index) const
     }
 }
 
-FORCE_INLINE bool Board::IsAtLeftEdge(IndexType index)
+constexpr FORCE_INLINE bool Board::IsAtLeftEdge(IndexType index)
 {
     assert(index != kInvalidIndex);
     assert(index < kHalfBoardSize);
     return index % kEdgeLength == 0;
 }
 
-FORCE_INLINE bool Board::IsAtRightEdge(IndexType index)
+constexpr FORCE_INLINE bool Board::IsAtRightEdge(IndexType index)
 {
     assert(index != kInvalidIndex);
     assert(index < kHalfBoardSize);
     return index % kEdgeLength == kEdgeLength - 1;
 }
 
-FORCE_INLINE Board::IndexType Board::InvalidateOutBoundsIndex(IndexType index)
+constexpr FORCE_INLINE Board::IndexType Board::InvalidateOutBoundsIndex(IndexType index)
 {
     return index >= kHalfBoardSize ? kInvalidIndex
                                    : index;  // Going sub zero will wrap around so this is correct
 }
 
-FORCE_INLINE RowParity Board::GetRowParity(IndexType index)
+constexpr FORCE_INLINE RowParity Board::GetRowParity(IndexType index)
 {
     assert(index != kInvalidIndex);
     assert(index < kHalfBoardSize);
@@ -160,7 +161,7 @@ FORCE_INLINE RowParity Board::GetRowParity(IndexType index)
 }
 
 template <MoveDirection direction>
-FORCE_INLINE Board::IndexType Board::GetRelativeMoveIndex(IndexType index) const
+constexpr FORCE_INLINE Board::IndexType Board::GetRelativeMoveIndex(IndexType index)
 {
     assert(index != kInvalidIndex);
     assert(index < kHalfBoardSize);
@@ -205,7 +206,7 @@ FORCE_INLINE Board::IndexType Board::GetRelativeMoveIndex(IndexType index) const
  * This does not check if the move is valid.
  */
 template <BoardCheckType type>
-FORCE_INLINE Board::IndexType Board::GetPieceLeftMoveIndex(IndexType index) const
+constexpr FORCE_INLINE Board::IndexType Board::GetPieceLeftMoveIndex(IndexType index)
 {
     assert(type != BoardCheckType::kAll);
     assert(type != BoardCheckType::kKings);
@@ -228,7 +229,7 @@ FORCE_INLINE Board::IndexType Board::GetPieceLeftMoveIndex(IndexType index) cons
  * This does not check if the move is valid.
  */
 template <BoardCheckType type>
-FORCE_INLINE Board::IndexType Board::GetPieceRightMoveIndex(IndexType index) const
+constexpr FORCE_INLINE Board::IndexType Board::GetPieceRightMoveIndex(IndexType index)
 {
     assert(type != BoardCheckType::kAll);
     assert(type != BoardCheckType::kKings);
@@ -244,6 +245,36 @@ FORCE_INLINE Board::IndexType Board::GetPieceRightMoveIndex(IndexType index) con
             assert(false);
             return kInvalidIndex;
     }
+}
+
+template <BoardCheckType type>
+FORCE_INLINE void Board::ApplyMove(IndexType from, IndexType to, bool is_caputre)
+{
+    assert(type != BoardCheckType::kAll);
+    assert(from != kInvalidIndex);
+    assert(to != kInvalidIndex);
+    assert(from < kHalfBoardSize);
+    assert(to < kHalfBoardSize);
+
+    if (is_caputre) {
+        switch (type) {
+            case BoardCheckType::kWhite:
+                black_pieces &= kCaptureLookUpTable[from][to];
+                break;
+            case BoardCheckType::kBlack:
+                white_pieces &= kCaptureLookUpTable[from][to];
+                break;
+            default:
+                assert(false);
+                break;
+        }
+    }
+    kings &= kCaptureLookUpTable[from][to];
+
+    if (IsPieceAt<BoardCheckType::kKings>(from)) {
+        MovePiece<BoardCheckType::kKings>(from, to);
+    }
+    MovePiece<type>(from, to);
 }
 
 }  // namespace CudaMctsCheckers

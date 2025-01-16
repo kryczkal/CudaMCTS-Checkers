@@ -300,4 +300,259 @@ TEST_F(BoardTest, GetPieceRightMoveIndex_Black)
     EXPECT_NE(right_move, Board::kInvalidIndex);
 }
 
+//------------------------------------------------------------------------------//
+//                                PromoteAll Tests                              //
+//------------------------------------------------------------------------------//
+
+TEST_F(BoardTest, PromoteAll_PromotesWhitePiecesOnTopEdge)
+{
+    // Set white pieces on the top edge (indices 0-3)
+    board_.SetPieceAt<BoardCheckType::kWhite>(0);
+    board_.SetPieceAt<BoardCheckType::kWhite>(1);
+    board_.SetPieceAt<BoardCheckType::kWhite>(2);
+    board_.SetPieceAt<BoardCheckType::kWhite>(3);
+
+    // Call PromoteAll
+    board_.PromoteAll();
+
+    // Check if kings are set for these positions
+    EXPECT_TRUE(board_.IsPieceAt<BoardCheckType::kKings>(0));
+    EXPECT_TRUE(board_.IsPieceAt<BoardCheckType::kKings>(1));
+    EXPECT_TRUE(board_.IsPieceAt<BoardCheckType::kKings>(2));
+    EXPECT_TRUE(board_.IsPieceAt<BoardCheckType::kKings>(3));
+}
+
+TEST_F(BoardTest, PromoteAll_PromotesBlackPiecesOnBottomEdge)
+{
+    // Set black pieces on the bottom edge (indices 28-31)
+    board_.SetPieceAt<BoardCheckType::kBlack>(28);
+    board_.SetPieceAt<BoardCheckType::kBlack>(29);
+    board_.SetPieceAt<BoardCheckType::kBlack>(30);
+    board_.SetPieceAt<BoardCheckType::kBlack>(31);
+
+    // Call PromoteAll
+    board_.PromoteAll();
+
+    // Check if kings are set for these positions
+    EXPECT_TRUE(board_.IsPieceAt<BoardCheckType::kKings>(28));
+    EXPECT_TRUE(board_.IsPieceAt<BoardCheckType::kKings>(29));
+    EXPECT_TRUE(board_.IsPieceAt<BoardCheckType::kKings>(30));
+    EXPECT_TRUE(board_.IsPieceAt<BoardCheckType::kKings>(31));
+}
+
+TEST_F(BoardTest, PromoteAll_DoesNotPromoteNonEdgePieces)
+{
+    // Set white and black pieces not on promotion edges
+    board_.SetPieceAt<BoardCheckType::kWhite>(4);
+    board_.SetPieceAt<BoardCheckType::kBlack>(27);
+
+    // Call PromoteAll
+    board_.PromoteAll();
+
+    // These should not be promoted
+    EXPECT_FALSE(board_.IsPieceAt<BoardCheckType::kKings>(4));
+    EXPECT_FALSE(board_.IsPieceAt<BoardCheckType::kKings>(27));
+}
+
+TEST_F(BoardTest, PromoteAll_PromotesOnlyRelevantPieces)
+{
+    // Set white pieces on top edge and some not on edge
+    board_.SetPieceAt<BoardCheckType::kWhite>(0);
+    board_.SetPieceAt<BoardCheckType::kWhite>(5);
+
+    // Set black pieces on bottom edge and some not on edge
+    board_.SetPieceAt<BoardCheckType::kBlack>(31);
+    board_.SetPieceAt<BoardCheckType::kBlack>(20);
+
+    // Call PromoteAll
+    board_.PromoteAll();
+
+    // Check promoted pieces
+    EXPECT_TRUE(board_.IsPieceAt<BoardCheckType::kKings>(0));
+    EXPECT_TRUE(board_.IsPieceAt<BoardCheckType::kKings>(31));
+
+    // Check non-promoted pieces
+    EXPECT_FALSE(board_.IsPieceAt<BoardCheckType::kKings>(5));
+    EXPECT_FALSE(board_.IsPieceAt<BoardCheckType::kKings>(20));
+}
+
+//------------------------------------------------------------------------------//
+//                           ApplyMove Tests                                   //
+//------------------------------------------------------------------------------//
+
+TEST_F(BoardTest, ApplyMove_NonCaptureMove_White)
+{
+    // Place a White piece at index 5 and move it to 9 (non-capture)
+    board_.SetPieceAt<BoardCheckType::kWhite>(5);
+    board_.ApplyMove<BoardCheckType::kWhite>(5, 9, false);
+
+    // Verify the move
+    EXPECT_FALSE(board_.IsPieceAt<BoardCheckType::kWhite>(5));
+    EXPECT_TRUE(board_.IsPieceAt<BoardCheckType::kWhite>(9));
+}
+
+TEST_F(BoardTest, ApplyMove_CaptureMove_Black)
+{
+    // Place a Black piece at index 10 and a White piece at index 14 (to be captured)
+    board_.SetPieceAt<BoardCheckType::kBlack>(10);
+    board_.SetPieceAt<BoardCheckType::kWhite>(14);
+
+    // Assume moving Black from 10 to 19 captures White at 14
+    // The capture lookup table should have kCaptureLookUpTable[10][19] with bitmask to remove 14
+    board_.ApplyMove<BoardCheckType::kBlack>(10, 19, true);
+
+    // Verify the move
+    EXPECT_FALSE(board_.IsPieceAt<BoardCheckType::kBlack>(10));
+    EXPECT_TRUE(board_.IsPieceAt<BoardCheckType::kBlack>(19));
+
+    // Verify the captured piece is removed
+    EXPECT_FALSE(board_.IsPieceAt<BoardCheckType::kWhite>(14));
+}
+
+TEST_F(BoardTest, ApplyMove_KingMove)
+{
+    // Promote a White piece to king
+    board_.SetPieceAt<BoardCheckType::kWhite>(0);
+    board_.PromoteAll();
+    EXPECT_TRUE(board_.IsPieceAt<BoardCheckType::kKings>(0));
+
+    // Move the king from 0 to 5
+    board_.ApplyMove<BoardCheckType::kKings>(0, 5, false);
+
+    // Verify the move
+    EXPECT_FALSE(board_.IsPieceAt<BoardCheckType::kWhite>(0));
+    EXPECT_TRUE(board_.IsPieceAt<BoardCheckType::kWhite>(5));
+    EXPECT_TRUE(board_.IsPieceAt<BoardCheckType::kKings>(5));
+}
+
+//------------------------------------------------------------------------------//
+//                          CheckGameResult Tests                              //
+//------------------------------------------------------------------------------//
+
+TEST_F(BoardTest, CheckGameResult_WhiteWins)
+{
+    // Set no black pieces
+    board_.white_pieces = 0xFFFF'FFFF;
+    board_.black_pieces = 0;
+
+    GameResult result = board_.CheckGameResult();
+    EXPECT_EQ(result, GameResult::kWhiteWin) << "White should win when no black pieces remain.";
+}
+
+TEST_F(BoardTest, CheckGameResult_BlackWins)
+{
+    // Set no white pieces
+    board_.white_pieces = 0;
+    board_.black_pieces = 0xFFFF'FFFF;
+
+    GameResult result = board_.CheckGameResult();
+    EXPECT_EQ(result, GameResult::kBlackWin) << "Black should win when no white pieces remain.";
+}
+
+TEST_F(BoardTest, CheckGameResult_Draw)
+{
+    // Set some pieces and set time_from_non_reversible_move >= 40
+    board_.white_pieces                  = 0x0000'00F0;
+    board_.black_pieces                  = 0x0000'F000;
+    board_.time_from_non_reversible_move = 40;
+
+    GameResult result = board_.CheckGameResult();
+    EXPECT_EQ(result, GameResult::kDraw)
+        << "Game should be a draw when time_from_non_reversible_move >= 40.";
+}
+
+TEST_F(BoardTest, CheckGameResult_InProgress)
+{
+    // Set some pieces and set time_from_non_reversible_move < 40
+    board_.white_pieces                  = 0x0000'00F0;
+    board_.black_pieces                  = 0x0000'F000;
+    board_.time_from_non_reversible_move = 10;
+
+    GameResult result = board_.CheckGameResult();
+    EXPECT_EQ(result, GameResult::kInProgress)
+        << "Game should be in progress when conditions for win/draw are not met.";
+}
+
+//------------------------------------------------------------------------------//
+//                          SetPieceAt and UnsetPieceAt Tests                //
+//------------------------------------------------------------------------------//
+
+TEST_F(BoardTest, SetPieceAt_Black)
+{
+    // Set a Black piece at index 10
+    board_.SetPieceAt<BoardCheckType::kBlack>(10);
+
+    // Check if the bit is set
+    EXPECT_TRUE(board_.IsPieceAt<BoardCheckType::kBlack>(10));
+    // Should not affect white or kings
+    EXPECT_FALSE(board_.IsPieceAt<BoardCheckType::kWhite>(10));
+    EXPECT_FALSE(board_.IsPieceAt<BoardCheckType::kKings>(10));
+    // "All" should see it
+    EXPECT_TRUE(board_.IsPieceAt<BoardCheckType::kAll>(10));
+}
+
+TEST_F(BoardTest, UnsetPieceAt_Black)
+{
+    // First set the piece
+    board_.SetPieceAt<BoardCheckType::kBlack>(15);
+    EXPECT_TRUE(board_.IsPieceAt<BoardCheckType::kBlack>(15));
+
+    // Now unset the piece
+    board_.UnsetPieceAt<BoardCheckType::kBlack>(15);
+    EXPECT_FALSE(board_.IsPieceAt<BoardCheckType::kBlack>(15));
+    EXPECT_FALSE(board_.IsPieceAt<BoardCheckType::kAll>(15));
+}
+
+TEST_F(BoardTest, SetPieceAt_Kings)
+{
+    // Set a King at index 20
+    board_.SetPieceAt<BoardCheckType::kKings>(20);
+
+    // Check if the bit is set
+    EXPECT_TRUE(board_.IsPieceAt<BoardCheckType::kKings>(20));
+    // Should not affect white or black pieces
+    EXPECT_FALSE(board_.IsPieceAt<BoardCheckType::kWhite>(20));
+    EXPECT_FALSE(board_.IsPieceAt<BoardCheckType::kBlack>(20));
+    // "All" should see it if it's either white or black
+    // Since kings can overlap, but in this implementation 'All' combines white and black
+    // Kings are separate, so "All" should not include kings
+    EXPECT_FALSE(board_.IsPieceAt<BoardCheckType::kAll>(20));
+}
+
+TEST_F(BoardTest, UnsetPieceAt_Kings)
+{
+    // First set the king
+    board_.SetPieceAt<BoardCheckType::kKings>(25);
+    EXPECT_TRUE(board_.IsPieceAt<BoardCheckType::kKings>(25));
+
+    // Now unset the king
+    board_.UnsetPieceAt<BoardCheckType::kKings>(25);
+    EXPECT_FALSE(board_.IsPieceAt<BoardCheckType::kKings>(25));
+}
+
+TEST_F(BoardTest, SetPieceAt_All)
+{
+    // Set a piece in "All" at index 12
+    board_.SetPieceAt<BoardCheckType::kAll>(12);
+
+    // Check if both white and black pieces are set
+    EXPECT_TRUE(board_.IsPieceAt<BoardCheckType::kWhite>(12));
+    EXPECT_TRUE(board_.IsPieceAt<BoardCheckType::kBlack>(12));
+    // Kings should not be affected
+    EXPECT_FALSE(board_.IsPieceAt<BoardCheckType::kKings>(12));
+}
+
+TEST_F(BoardTest, UnsetPieceAt_All)
+{
+    // First set the piece in "All"
+    board_.SetPieceAt<BoardCheckType::kAll>(18);
+    EXPECT_TRUE(board_.IsPieceAt<BoardCheckType::kWhite>(18));
+    EXPECT_TRUE(board_.IsPieceAt<BoardCheckType::kBlack>(18));
+
+    // Now unset the piece in "All"
+    board_.UnsetPieceAt<BoardCheckType::kAll>(18);
+    EXPECT_FALSE(board_.IsPieceAt<BoardCheckType::kWhite>(18));
+    EXPECT_FALSE(board_.IsPieceAt<BoardCheckType::kBlack>(18));
+}
+
 }  // namespace CudaMctsCheckers

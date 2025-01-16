@@ -46,11 +46,12 @@ class MoveGenerationTest : public ::testing::Test
      * @param expected_moves_and_capture A map where the key is the expected move type and the value
      * is the expected capture flag.
      */
-    void CompareMoves(
+    static void CompareMoves(
         const MoveGenerationOutput& output, size_t base_idx,
         const std::unordered_map<Move::Type, bool>& expected_moves_and_capture
     )
     {
+        MAYBE_UNUSED(base_idx);
         size_t valid_moves = CountValidMoves(output);
         EXPECT_EQ(valid_moves, expected_moves_and_capture.size());
 
@@ -60,7 +61,7 @@ class MoveGenerationTest : public ::testing::Test
             for (size_t i = 0; i < Move::kNumMoveArrayForPlayerSize; ++i) {
                 if (output.possible_moves[i] == move) {
                     found = true;
-                    EXPECT_EQ(output.capture_moves[i], should_capture)
+                    EXPECT_EQ(output.capture_moves_bitmask[i], should_capture)
                         << "Move " << move << " capture flag mismatch.";
                     break;
                 }
@@ -88,14 +89,14 @@ TEST_F(MoveGenerationTest, NoPiecesShouldGenerateNoMoves)
         auto output_white =
             MoveGenerator::GenerateMovesForPlayerCpu<BoardCheckType::kWhite>(board_);
         EXPECT_EQ(CountValidMoves(output_white), 0);
-        EXPECT_FALSE(output_white.capture_moves[MoveGenerationOutput::CaptureFlagIndex]);
+        EXPECT_FALSE(output_white.capture_moves_bitmask[MoveGenerationOutput::CaptureFlagIndex]);
     }
     // No black pieces
     {
         auto output_black =
             MoveGenerator::GenerateMovesForPlayerCpu<BoardCheckType::kBlack>(board_);
         EXPECT_EQ(CountValidMoves(output_black), 0);
-        EXPECT_FALSE(output_black.capture_moves[MoveGenerationOutput::CaptureFlagIndex]);
+        EXPECT_FALSE(output_black.capture_moves_bitmask[MoveGenerationOutput::CaptureFlagIndex]);
     }
 }
 
@@ -120,7 +121,7 @@ TEST_F(MoveGenerationTest, SingleWhitePieceMoves)
     size_t base_idx = 12 * Move::kNumMaxPossibleMovesPerPiece;
     CompareMoves(output, base_idx, expected_moves_and_capture);
 
-    EXPECT_FALSE(output.capture_moves[MoveGenerationOutput::CaptureFlagIndex]);
+    EXPECT_FALSE(output.capture_moves_bitmask[MoveGenerationOutput::CaptureFlagIndex]);
 }
 
 /**
@@ -143,7 +144,7 @@ TEST_F(MoveGenerationTest, SingleBlackPieceMoves)
     size_t base_idx = 5 * Move::kNumMaxPossibleMovesPerPiece;
     CompareMoves(output, base_idx, expected_moves_and_capture);
 
-    EXPECT_FALSE(output.capture_moves[MoveGenerationOutput::CaptureFlagIndex]);
+    EXPECT_FALSE(output.capture_moves_bitmask[MoveGenerationOutput::CaptureFlagIndex]);
 }
 
 /**
@@ -165,7 +166,7 @@ TEST_F(MoveGenerationTest, WhitePieceCanCaptureBlackPiece)
     size_t base_idx = 13 * Move::kNumMaxPossibleMovesPerPiece;
     CompareMoves(output, base_idx, expected_moves_and_capture);
 
-    EXPECT_TRUE(output.capture_moves[MoveGenerationOutput::CaptureFlagIndex]);
+    EXPECT_TRUE(output.capture_moves_bitmask[MoveGenerationOutput::CaptureFlagIndex]);
 }
 
 /**
@@ -196,7 +197,7 @@ TEST_F(MoveGenerationTest, KingPieceGeneratesDiagonalMoves)
     size_t base_idx = 12 * Move::kNumMaxPossibleMovesPerPiece;
     CompareMoves(output, base_idx, expected_moves_and_capture);
 
-    EXPECT_FALSE(output.capture_moves[MoveGenerationOutput::CaptureFlagIndex]);
+    EXPECT_FALSE(output.capture_moves_bitmask[MoveGenerationOutput::CaptureFlagIndex]);
 }
 
 TEST_F(MoveGenerationTest, KingPieceMoveWithCapture)
@@ -221,7 +222,7 @@ TEST_F(MoveGenerationTest, KingPieceMoveWithCapture)
     size_t base_idx = 12 * Move::kNumMaxPossibleMovesPerPiece;
     CompareMoves(output, base_idx, expected_moves_and_capture);
 
-    EXPECT_TRUE(output.capture_moves[MoveGenerationOutput::CaptureFlagIndex]);
+    EXPECT_TRUE(output.capture_moves_bitmask[MoveGenerationOutput::CaptureFlagIndex]);
 }
 
 TEST_F(MoveGenerationTest, KingPieceMoveBlockedByDifferentColor)
@@ -245,7 +246,7 @@ TEST_F(MoveGenerationTest, KingPieceMoveBlockedByDifferentColor)
     size_t base_idx = 12 * Move::kNumMaxPossibleMovesPerPiece;
     CompareMoves(output, base_idx, expected_moves_and_capture);
 
-    EXPECT_FALSE(output.capture_moves[MoveGenerationOutput::CaptureFlagIndex]);
+    EXPECT_FALSE(output.capture_moves_bitmask[MoveGenerationOutput::CaptureFlagIndex]);
 }
 
 TEST_F(MoveGenerationTest, KingPieceMoveBlockedBySameColor)
@@ -270,7 +271,7 @@ TEST_F(MoveGenerationTest, KingPieceMoveBlockedBySameColor)
     size_t base_idx = 12 * Move::kNumMaxPossibleMovesPerPiece;
     CompareMoves(output, base_idx, expected_moves_and_capture);
 
-    EXPECT_FALSE(output.capture_moves[MoveGenerationOutput::CaptureFlagIndex]);
+    EXPECT_FALSE(output.capture_moves_bitmask[MoveGenerationOutput::CaptureFlagIndex]);
 }
 
 TEST_F(MoveGenerationTest, WhitePieceBlockedBySameColorAdjacent)
@@ -279,7 +280,7 @@ TEST_F(MoveGenerationTest, WhitePieceBlockedBySameColorAdjacent)
     board_.SetPieceAt<BoardCheckType::kWhite>(8);
 
     auto output = MoveGenerator::GenerateMovesForPlayerCpu<BoardCheckType::kWhite>(board_);
-    EXPECT_FALSE(output.capture_moves[MoveGenerationOutput::CaptureFlagIndex]);
+    EXPECT_FALSE(output.capture_moves_bitmask[MoveGenerationOutput::CaptureFlagIndex]);
 
     std::unordered_map<Move::Type, bool> expected_moves_and_capture = {
         {9, false},
@@ -312,7 +313,7 @@ TEST_F(MoveGenerationTest, BlackPieceMultipleCaptureScenario)
     size_t base_idx = 13 * Move::kNumMaxPossibleMovesPerPiece;
     CompareMoves(output, base_idx, expected_moves_and_capture);
 
-    EXPECT_TRUE(output.capture_moves[MoveGenerationOutput::CaptureFlagIndex]);
+    EXPECT_TRUE(output.capture_moves_bitmask[MoveGenerationOutput::CaptureFlagIndex]);
 }
 
 /**
@@ -342,7 +343,37 @@ TEST_F(MoveGenerationTest, KingPieceBlockedBySameColorInAlmostAllDirections)
     size_t base_idx = 12 * Move::kNumMaxPossibleMovesPerPiece;
     CompareMoves(output, base_idx, expected_moves_and_capture);
 
-    EXPECT_FALSE(output.capture_moves[MoveGenerationOutput::CaptureFlagIndex]);
+    EXPECT_FALSE(output.capture_moves_bitmask[MoveGenerationOutput::CaptureFlagIndex]);
+}
+
+/**
+ *
+ * This board has made the program go into an infinite loop once by setting the capture flag
+ * globally and not setting it for a particular move.
+ *
+ *  8 | .   .   .   .
+ *  7 |   .   .   .   .
+ *  6 | .   B   b   .
+ *  5 |   b   .   .   .
+ *  4 | w   .   .   .
+ *  3 |   .   w   .   .
+ *  2 | .   .   .   .
+ *  1 |   .   .   .   w
+ */
+TEST_F(MoveGenerationTest, DifficultBoard1)
+{
+    board_.SetPieceAt<BoardCheckType::kWhite>(31);
+    board_.SetPieceAt<BoardCheckType::kWhite>(21);
+    board_.SetPieceAt<BoardCheckType::kWhite>(16);
+
+    board_.SetPieceAt<BoardCheckType::kBlack>(12);
+    board_.SetPieceAt<BoardCheckType::kBlack>(9);
+    board_.SetPieceAt<BoardCheckType::kBlack>(10);
+
+    board_.SetPieceAt<BoardCheckType::kKings>(9);
+
+    auto output = MoveGenerator::GenerateMovesForPlayerCpu<BoardCheckType::kBlack>(board_);
+    ASSERT_FALSE(output.capture_moves_bitmask[MoveGenerationOutput::CaptureFlagIndex]);
 }
 
 }  // namespace CudaMctsCheckers

@@ -20,6 +20,9 @@ struct PACK SimulationResult {
     u32 visits;
 };
 
+using TrieEncodedMove       = u16;
+using TrieDecodedMoveAsPair = std::pair<Board::IndexType, Move::Type>;
+
 static constexpr f32 kExplorationConstant = 1.41f;
 
 class MonteCarloTreeNode;
@@ -30,14 +33,14 @@ class MonteCarloTree
     //------------------------------------------------------------------------------//
     //                        Class Creation and Destruction                        //
     //------------------------------------------------------------------------------//
-    explicit MonteCarloTree(Board board);
+    explicit MonteCarloTree(Board board, Turn turn);
 
     ~MonteCarloTree();
 
     //------------------------------------------------------------------------------//
     //                                Public Methods                                //
     //------------------------------------------------------------------------------//
-    Move::Type Run(f32 time);
+    TrieDecodedMoveAsPair Run(f32 time_seconds);
 
     //------------------------------------------------------------------------------//
     //                               Public Variables                               //
@@ -58,7 +61,7 @@ class MonteCarloTree
 
     //////////////////////////////////////////////////////////////////////////////////
     template <MaxComparable EvalType, EvalFunction<EvalType> auto EvalFunc>
-    Move::Type SelectBestMove();
+    TrieEncodedMove SelectBestMove();
 
     // Evaluation functions
     static f32 WinRate(MonteCarloTreeNode *node);
@@ -77,6 +80,7 @@ class MonteCarloTreeNode
     //------------------------------------------------------------------------------//
     //                        Class Creation and Destruction                        //
     //------------------------------------------------------------------------------//
+
     explicit MonteCarloTreeNode(Board board, Turn turn);
     explicit MonteCarloTreeNode(Board board, MonteCarloTreeNode *parent);
 
@@ -85,11 +89,15 @@ class MonteCarloTreeNode
     //------------------------------------------------------------------------------//
     //                                Public Methods                                //
     //------------------------------------------------------------------------------//
+
     f32 UctScore() const;
+    static u16 EncodeMove(Board::IndexType piece, Move::Type movement);
+    static TrieDecodedMoveAsPair DecodeMove(u16 encoded_move);
 
     //------------------------------------------------------------------------------//
     //                               Public Variables                               //
     //------------------------------------------------------------------------------//
+
     size_t visits_ = 0;  // Number of times the node has been visited
     f32 score_     = 0;  // Score of the node
     Turn turn_;
@@ -104,8 +112,10 @@ class MonteCarloTreeNode
     //------------------------------------------------------------------------------//
     Board board_{};               // Board state of the node
     MonteCarloTreeNode *parent_;  // Parent node of the current node
-    std::unordered_map<Move::Type,
-                       MonteCarloTreeNode *> children_;  // Map of moves to child nodes
+    std::unordered_map<
+        TrieEncodedMove,
+        MonteCarloTreeNode *>
+        children_;  // Map of moves to child nodes
 
     friend MonteCarloTree;
 };

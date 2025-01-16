@@ -6,11 +6,11 @@
 namespace CudaMctsCheckers
 {
 
-struct PACK MoveGenerationOutput {
+struct MoveGenerationOutput {
     static constexpr u32 CaptureFlagIndex = Move::kNumMoveArrayForPlayerSize;
     Move::MoveArrayForPlayer possible_moves;
     std::bitset<Move::kNumMoveArrayForPlayerSize + 1>
-        capture_moves;  // Last bit is for detected capture
+        capture_moves_bitmask;  // Last bit is for detected capture
 };
 
 class MoveGenerator
@@ -19,7 +19,7 @@ class MoveGenerator
     //------------------------------------------------------------------------------//
     //                        Class Creation and Destruction                        //
     //------------------------------------------------------------------------------//
-    // Static class
+
     MoveGenerator()                                 = delete;
     ~MoveGenerator()                                = delete;
     MoveGenerator(const MoveGenerator &)            = delete;
@@ -29,13 +29,24 @@ class MoveGenerator
     //------------------------------------------------------------------------------//
     //                                Public Methods                                //
     //------------------------------------------------------------------------------//
+
     template <BoardCheckType type>
     static MoveGenerationOutput GenerateMovesForPlayerCpu(const Board &board);
 
+    template <BoardCheckType type>
+    WRAP_CALL void GenerateMovesPieceCpu(
+        const Board &board, MoveGenerationOutput &output, Board::IndexType i, u32 current_move_index
+    );
+
     template <BoardCheckType type, MoveDirection direction>
-    static void GenerateMovesDiagonalCpu(
+    WRAP_CALL void GenerateMovesDiagonalCpu(
         const Board &board, MoveGenerationOutput &output, Board::IndexType index,
-        Board::IndexType &current_move_index
+        u32 &current_move_index
+    );
+
+    template <BoardCheckType type>
+    WRAP_CALL void GenerateMovesKingCpu(
+        const Board &board, MoveGenerationOutput &output, Board::IndexType i, u32 current_move_index
     );
 
     //------------------------------------------------------------------------------//
