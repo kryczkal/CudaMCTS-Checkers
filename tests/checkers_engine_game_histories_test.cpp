@@ -8,7 +8,7 @@
 namespace CudaMctsCheckers
 {
 
-class CheckersEngineMemoryTest : public ::testing::Test
+class CheckersEngineGameHistoriesTest : public ::testing::Test
 {
     protected:
     CheckersEngine engine_;
@@ -31,7 +31,7 @@ class CheckersEngineMemoryTest : public ::testing::Test
 /**
  * @brief Test restoring game state from an in-memory move list.
  */
-TEST_F(CheckersEngineMemoryTest, RestoreFromMoveList_Success)
+TEST_F(CheckersEngineGameHistoriesTest, CrashGame1)
 {
     std::string error_message;
     bool success =
@@ -41,7 +41,6 @@ TEST_F(CheckersEngineMemoryTest, RestoreFromMoveList_Success)
 
     // Verify the final board state
     const Board &board = engine_.GetBoard();
-    std::cout << board << std::endl;
 
     EXPECT_TRUE(board.IsPieceAt<BoardCheckType::kWhite>(9));
     EXPECT_FALSE(board.IsPieceAt<BoardCheckType::kBlack>(13));
@@ -53,10 +52,32 @@ TEST_F(CheckersEngineMemoryTest, RestoreFromMoveList_Success)
     EXPECT_TRUE(board.IsPieceAt<BoardCheckType::kBlack>(6));
     EXPECT_TRUE(board.IsPieceAt<BoardCheckType::kBlack>(14));
 
-    // Verify the current turn is Black (since the last move was a capture, but in our engine
+    // Verify the current turn is Black (since the last move was a capture, but in my engine
     // implementation, captures do not allow for multi-captures, and the turn is switched
     // after each move, so it should now be Black's turn)
     EXPECT_EQ(engine_.GetCurrentTurn(), Turn::kBlack);
+}
+
+TEST_F(CheckersEngineGameHistoriesTest, CrashGame2)
+{
+    std::string error_message;
+    Board board;
+    board.SetPieceAt<BoardCheckType::kWhite>(31);
+    board.SetPieceAt<BoardCheckType::kWhite>(30);
+    board.SetPieceAt<BoardCheckType::kBlack>(0);
+    board.SetPieceAt<BoardCheckType::kBlack>(1);
+    board.SetPieceAt<BoardCheckType::kBlack>(2);
+    board.SetPieceAt<BoardCheckType::kBlack>(3);
+    board.SetPieceAt<BoardCheckType::kBlack>(4);
+    board.SetPieceAt<BoardCheckType::kBlack>(5);
+
+    CheckersEngine engine{board, Turn::kWhite};
+    bool success =
+        engine.RestoreFromHistoryFile("./game_histories/crash-game-2.txt", error_message);
+    EXPECT_FALSE(success) << "RestoreFromMoveList should succeed, but failed with error: "
+                          << error_message;
+
+    std::cout << engine_.GetBoard();
 }
 
 }  // namespace CudaMctsCheckers

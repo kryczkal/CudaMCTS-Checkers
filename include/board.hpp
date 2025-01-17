@@ -12,7 +12,6 @@ namespace CudaMctsCheckers
 {
 enum class BoardCheckType { kWhite, kBlack, kKings, kAll };
 enum class RowParity { kEven, kOdd };
-enum class GameResult { kWhiteWin, kBlackWin, kDraw, kInProgress };
 
 class PACK Board
 {
@@ -97,8 +96,6 @@ class PACK Board
         promotion = black_pieces & black_mask;
         kings |= promotion;
     }
-
-    [[nodiscard]] GameResult CheckGameResult() const;
 
     //------------------------------------------------------------------------------//
     //                                Friend Functions                              //

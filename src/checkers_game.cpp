@@ -41,109 +41,78 @@ void CheckersGame::SetGui(std::shared_ptr<ICheckersGui> gui) { gui_ = gui; }
 
 void CheckersGame::Play(const std::string &output_file)
 {
-    // Display initial board
-    if (gui_) {
-        gui_->DisplayBoard(engine_->GetBoard());
+    assert(engine_);
+    assert(gui_);
+    if (!gui_) {
+        std::cerr << "No GUI set";
+        return;
     }
 
+    // Display initial board
+    gui_->DisplayBoard(engine_->GetBoard());
+
     // Main loop
-    while (true) {
-        // Check end of game
-        GameResult result = engine_->CheckGameResult();
-        if (result != GameResult::kInProgress) {
-            // Show final board
-            if (gui_) {
-                gui_->DisplayBoard(engine_->GetBoard());
-            }
-            // Announce
-            std::string msg;
-            if (result == GameResult::kWhiteWin) {
-                msg = "Game over! White wins.";
-            } else if (result == GameResult::kBlackWin) {
-                msg = "Game over! Black wins.";
-            } else {
-                msg = "Game over! It's a draw.";
-            }
-            if (gui_) {
-                gui_->DisplayMessage(msg);
-            } else {
-                std::cout << msg << std::endl;
-            }
-            // Save record
-            SaveGameRecord(output_file);
-            return;
-        }
+    GameResult result;
+    while ((result = engine_->CheckGameResult()) == GameResult::kInProgress) {
+        gui_->DisplayMessage(
+            (engine_->GetCurrentTurn() == Turn::kWhite ? "White" : "Black") +
+            std::string(" to move.")
+        );
 
-        // Whose turn?
         if (IsHumanTurn()) {
-            // Human
-            if (gui_) {
-                gui_->DisplayMessage(
-                    (engine_->GetCurrentTurn() == Turn::kWhite ? "White" : "Black") +
-                    std::string(" to move.")
-                );
-            }
-
             // Time-limited user input
             auto start_time = std::chrono::steady_clock::now();
             std::string move_str;
-            if (gui_) {
-                move_str = gui_->PromptForMove();
-            } else {
-                std::cout << "Enter your move: ";
-                std::getline(std::cin, move_str);
-            }
+            move_str      = gui_->PromptForMove();
             auto end_time = std::chrono::steady_clock::now();
             float elapsed = std::chrono::duration<float>(end_time - start_time).count();
 
             if (elapsed > time_limit_per_move_) {
                 // Time out => lose
-                if (gui_) {
-                    gui_->DisplayMessage("You took too long. You lose!");
-                }
-                // Force a result
-                // If White is human, then Black wins, etc.
-                SaveGameRecord(output_file);
-                return;
+                gui_->DisplayMessage("You took too long. You lose!");
+                result =
+                    (human_turn_ == Turn::kWhite) ? GameResult::kBlackWin : GameResult::kWhiteWin;
+                break;
             }
 
             // Attempt the move
             auto [ok, err_msg] = AttemptMoveViaEngine(move_str);
             if (!ok) {
-                if (gui_) {
-                    gui_->DisplayMessage("Invalid move: " + err_msg);
-                } else {
-                    std::cout << "Invalid move: " << err_msg << std::endl;
-                }
+                gui_->DisplayMessage("Invalid move: " + err_msg);
             } else {
-                if (gui_) {
-                    gui_->DisplayBoard(engine_->GetBoard());
-                }
+                gui_->DisplayBoard(engine_->GetBoard());
             }
         } else {
             // AI
-            if (gui_) {
-                gui_->DisplayMessage("AI thinking...");
-            }
+            gui_->DisplayMessage("AI thinking...");
 
             auto start_time = std::chrono::steady_clock::now();
+
             // Build a tree from current engine state
             MonteCarloTree tree(engine_->GetBoard(), engine_->GetCurrentTurn());
             TrieDecodedMoveAsPair best_move = tree.Run(time_limit_per_move_ai_ - 0.1f);
 
             auto end_time = std::chrono::steady_clock::now();
             float elapsed = std::chrono::duration<float>(end_time - start_time).count();
-            // If AI times out, you could handle that scenario similarly.
+
+            //            if (elapsed > time_limit_per_move_ai_) {
+            //                // Time out => lose
+            //                gui_->DisplayMessage("AI took too long. You win!");
+            //                result = (human_turn_ == Turn::kWhite) ? GameResult::kWhiteWin :
+            //                GameResult::kBlackWin; break;
+            //            }
 
             // Apply
-            bool success = engine_->ApplyMove(best_move.first, best_move.second);
+            bool success =
+                engine_->ApplyMove<ApplyMoveType::kNoValidate>(best_move.first, best_move.second);
             if (!success) {
                 // If AI somehow provided an invalid move, treat it as no moves => lose
                 if (gui_) {
                     gui_->DisplayMessage("AI has no valid moves and loses!");
                 }
-                SaveGameRecord(output_file);
-                return;
+                result =
+                    (human_turn_ == Turn::kWhite) ? GameResult::kWhiteWin : GameResult::kBlackWin;
+                break;
             }
 
             // Convert that to notation
@@ -159,20 +128,34 @@ void CheckersGame::Play(const std::string &output_file)
                 return oss.str();
             };
 
-            // We can guess if it was a capture by regenerating moves or checking the
-            // time_from_non_reversible_move. Simpler: just guess:
+            // TODO: Chain captures
             std::string notation =
                 indexToNotation(best_move.first) + "-" + indexToNotation(best_move.second);
             move_history_.push_back(notation);
 
-            if (gui_) {
-                gui_->DisplayMessage("AI move: " + notation);
-                gui_->DisplayBoard(engine_->GetBoard());
-            } else {
-                std::cout << "AI move: " << notation << std::endl;
-            }
+            gui_->DisplayMessage("AI move: " + notation);
+            gui_->DisplayBoard(engine_->GetBoard());
         }
     }
+
+    gui_->DisplayBoard(engine_->GetBoard());
+
+    // Announce
+    std::string msg;
+    if (result == GameResult::kWhiteWin) {
+        msg = "Game over! White wins.";
+    } else if (result == GameResult::kBlackWin) {
+        msg = "Game over! Black wins.";
+    } else {
+        msg = "Game over! It's a draw.";
+    }
+    if (gui_) {
+        gui_->DisplayMessage(msg);
+    } else {
+        std::cout << msg << std::endl;
+    }
+    // Save record
+    SaveGameRecord(output_file);
 }
 
 bool CheckersGame::IsHumanTurn() const { return (engine_->GetCurrentTurn() == human_turn_); }
@@ -232,11 +215,8 @@ std::pair<bool, std::string> CheckersGame::AttemptMoveViaEngine(const std::strin
         return {false, "Invalid squares in notation."};
     }
 
-    // Possibly forced capture if delim == ':'
-    bool force_capture = (delim == ':');
-
     // Attempt
-    bool success = engine_->ApplyMove(from_idx, to_idx, force_capture);
+    bool success = engine_->ApplyMove<ApplyMoveType::kValidate>(from_idx, to_idx);
     if (!success) {
         return {false, "Move not valid for current player."};
     }
@@ -256,7 +236,7 @@ bool CheckersGame::ApplyMultiCaptureMoveViaEngine(const std::vector<std::string>
             return false;
         }
         // Force capture
-        bool success = engine_->ApplyMove(from_idx, to_idx, true);
+        bool success = engine_->ApplyMove<ApplyMoveType::kValidate>(from_idx, to_idx);
         if (!success) {
             return false;
         }
@@ -317,6 +297,18 @@ void CheckersGame::SaveGameRecord(const std::string &output_file) const
         ofs << (i + 1) << ". " << move_history_[i] << "\n";
     }
     ofs.close();
+}
+
+bool CheckersGame::LoadGameRecord(const std::string &input_file)
+{
+    assert(engine_);
+
+    std::string error_message;
+    bool success = engine_->RestoreFromHistoryFile(input_file, error_message);
+    if (!success) {
+        std::cerr << "Error loading history file: " << error_message << std::endl;
+    }
+    return success;
 }
 
 }  // namespace CudaMctsCheckers

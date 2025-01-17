@@ -82,6 +82,8 @@ class CheckersGame
      */
     void Play(const std::string &output_file = "");
 
+    bool LoadGameRecord(const std::string &input_file);
+
     private:
     /**
      * @brief Determines if it's the human player's turn.
@@ -114,7 +116,6 @@ class CheckersGame
      */
     void SaveGameRecord(const std::string &output_file) const;
 
-    private:
     // We no longer store Board & Turn directly; we store a CheckersEngine
     std::unique_ptr<CheckersEngine> engine_{};
 

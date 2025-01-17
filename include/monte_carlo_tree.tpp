@@ -28,6 +28,7 @@ TrieEncodedMove MonteCarloTree::SelectBestMove()
             best_move  = child.first;
         }
     }
+    std::cout << "Best score: " << best_score << std::endl;
     assert(best_move != Board::kInvalidIndex);
     return best_move;
 }

@@ -427,54 +427,6 @@ TEST_F(BoardTest, ApplyMove_KingMove)
 }
 
 //------------------------------------------------------------------------------//
-//                          CheckGameResult Tests                              //
-//------------------------------------------------------------------------------//
-
-TEST_F(BoardTest, CheckGameResult_WhiteWins)
-{
-    // Set no black pieces
-    board_.white_pieces = 0xFFFF'FFFF;
-    board_.black_pieces = 0;
-
-    GameResult result = board_.CheckGameResult();
-    EXPECT_EQ(result, GameResult::kWhiteWin) << "White should win when no black pieces remain.";
-}
-
-TEST_F(BoardTest, CheckGameResult_BlackWins)
-{
-    // Set no white pieces
-    board_.white_pieces = 0;
-    board_.black_pieces = 0xFFFF'FFFF;
-
-    GameResult result = board_.CheckGameResult();
-    EXPECT_EQ(result, GameResult::kBlackWin) << "Black should win when no white pieces remain.";
-}
-
-TEST_F(BoardTest, CheckGameResult_Draw)
-{
-    // Set some pieces and set time_from_non_reversible_move >= 40
-    board_.white_pieces                  = 0x0000'00F0;
-    board_.black_pieces                  = 0x0000'F000;
-    board_.time_from_non_reversible_move = 40;
-
-    GameResult result = board_.CheckGameResult();
-    EXPECT_EQ(result, GameResult::kDraw)
-        << "Game should be a draw when time_from_non_reversible_move >= 40.";
-}
-
-TEST_F(BoardTest, CheckGameResult_InProgress)
-{
-    // Set some pieces and set time_from_non_reversible_move < 40
-    board_.white_pieces                  = 0x0000'00F0;
-    board_.black_pieces                  = 0x0000'F000;
-    board_.time_from_non_reversible_move = 10;
-
-    GameResult result = board_.CheckGameResult();
-    EXPECT_EQ(result, GameResult::kInProgress)
-        << "Game should be in progress when conditions for win/draw are not met.";
-}
-
-//------------------------------------------------------------------------------//
 //                          SetPieceAt and UnsetPieceAt Tests                //
 //------------------------------------------------------------------------------//
 

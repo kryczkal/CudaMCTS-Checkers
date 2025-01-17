@@ -1,159 +1,175 @@
-#include "checkers_engine.hpp"
+#include <checkers_engine.hpp>
 #include <cstdlib>  // for rand()
 #include <fstream>
 #include <iostream>
 #include <sstream>
+#include <vector>
 
 namespace CudaMctsCheckers
 {
 
 CheckersEngine::CheckersEngine(const Board &board, Turn turn) : board_(board), current_turn_(turn)
 {
+    last_moves_output_.no_moves = false;
+}
+CheckersEngine::CheckersEngine()
+{
+    last_moves_output_.no_moves = false;
+    board_                      = Board();
+    current_turn_               = Turn::kWhite;
+
+    for (int i = 0; i < 12; i++) {
+        board_.SetPieceAt<BoardCheckType::kWhite>(i + 20);
+        board_.SetPieceAt<BoardCheckType::kBlack>(i);
+    }
 }
 
 const Board &CheckersEngine::GetBoard() const { return board_; }
 
 Turn CheckersEngine::GetCurrentTurn() const { return current_turn_; }
 
-MoveGenerationOutput CheckersEngine::GenerateCurrentPlayerMoves() const
+MoveGenerationOutput CheckersEngine::GenerateCurrentPlayerMoves()
 {
+    MoveGenerationOutput moves_output;
     if (current_turn_ == Turn::kWhite) {
-        return MoveGenerator::GenerateMovesForPlayerCpu<BoardCheckType::kWhite>(board_);
+        moves_output = MoveGenerator::GenerateMovesForPlayerCpu<BoardCheckType::kWhite>(board_);
     } else {
-        return MoveGenerator::GenerateMovesForPlayerCpu<BoardCheckType::kBlack>(board_);
+        moves_output = MoveGenerator::GenerateMovesForPlayerCpu<BoardCheckType::kBlack>(board_);
     }
+    last_moves_output_ = moves_output;
+    return moves_output;
 }
 
-bool CheckersEngine::ApplyMove(
-    Board::IndexType from_idx, Board::IndexType to_idx, bool force_capture
+bool CheckersEngine::IsMoveValid(
+    Board::IndexType from_idx, Move::Type to_idx, const MoveGenerationOutput &possible_moves
 )
-{
-    // Generate moves for the current player
-    auto moves_output = GenerateCurrentPlayerMoves();
+{  // Validate move
+    bool found = false;
+    bool capture_possible =
+        possible_moves.capture_moves_bitmask[MoveGenerationOutput::CaptureFlagIndex];
 
-    bool found            = false;
-    bool capture_happened = false;
-
-    // Search through generated moves to see if (from_idx -> to_idx) is valid
-    for (u32 i = 0; i < Move::kNumMoveArrayForPlayerSize; ++i) {
-        if (Move::DecodeOriginIndex(i) == from_idx && moves_output.possible_moves[i] == to_idx) {
-            // If caller forces a capture, skip if it’s not a capturing move
-            if (force_capture && !moves_output.capture_moves_bitmask[i]) {
-                continue;
+    for (u32 i = from_idx * Move::kNumMaxPossibleMovesPerPiece;
+         i < (from_idx + 1) * Move::kNumMaxPossibleMovesPerPiece; ++i) {
+        if (possible_moves.possible_moves[i] == to_idx) {
+            if (capture_possible && !possible_moves.capture_moves_bitmask[i]) {
+                break;
             }
-            found            = true;
-            capture_happened = moves_output.capture_moves_bitmask[i];
+            found = true;
             break;
         }
     }
-
     if (!found) {
         return false;
-    }
-
-    // Actually apply
-    if (current_turn_ == Turn::kWhite) {
-        board_.ApplyMove<BoardCheckType::kWhite>(from_idx, to_idx, capture_happened);
     } else {
-        board_.ApplyMove<BoardCheckType::kBlack>(from_idx, to_idx, capture_happened);
+        return true;
     }
+}
 
-    // Promote
-    PromoteAndUpdateReversibleCount(!capture_happened);
-
-    // Switch turn if we are not continuing a multi-capture
-    SwitchTurnIfNeeded(capture_happened);
-
-    return true;
+void CheckersEngine::PlayMove(unsigned char from_idx, unsigned char to_idx, bool is_capture)
+{
+    if (current_turn_ == Turn::kWhite) {
+        board_.ApplyMove<BoardCheckType::kWhite>(from_idx, to_idx, is_capture);
+    } else {
+        board_.ApplyMove<BoardCheckType::kBlack>(from_idx, to_idx, is_capture);
+    }
 }
 
 bool CheckersEngine::ApplyRandomMove()
 {
-    auto moves_output = GenerateCurrentPlayerMoves();
-
-    // Check if any valid moves
-    bool any_valid_moves = false;
-    for (u32 i = 0; i < Move::kNumMoveArrayForPlayerSize; ++i) {
-        if (moves_output.possible_moves[i] != Move::kInvalidMove) {
-            any_valid_moves = true;
-            break;
-        }
-    }
-    if (!any_valid_moves) {
+    auto moves_output      = GetPrecomputedMovesOrGenerate();
+    has_precomputed_moves_ = false;
+    if (moves_output.no_moves)
         return false;
-    }
 
-    // Check if a capture is required
-    bool capture_required =
+    bool capture_possible =
         moves_output.capture_moves_bitmask[MoveGenerationOutput::CaptureFlagIndex];
 
-    // We’ll pick a random move that satisfies capture conditions if needed
-    bool found_move       = false;
-    u32 random_move_index = 0;
-    for (u32 attempts = 0; attempts < Move::kNumMoveArrayForPlayerSize; attempts++) {
-        random_move_index       = rand() % Move::kNumMoveArrayForPlayerSize;
-        Board::IndexType to_idx = moves_output.possible_moves[random_move_index];
-        if (to_idx == Move::kInvalidMove) {
-            continue;
+    u32 random_move_index =
+        (rand() % Move::kNumMoveArrayForPlayerSize) % Move::kNumMaxPossibleMovesPerPiece;
+    u32 i;
+    for (i = 0; i < Board::kHalfBoardSize; i++) {
+        if (capture_possible) {
+            while (moves_output.possible_moves[random_move_index] != Move::kInvalidMove &&
+                   !moves_output.capture_moves_bitmask[random_move_index]) {
+                random_move_index = (random_move_index + 1) % Move::kNumMoveArrayForPlayerSize;
+            }
         }
-        bool is_capture = moves_output.capture_moves_bitmask[random_move_index];
-        if (capture_required && !is_capture) {
-            continue;
+
+        if (moves_output.possible_moves[random_move_index] != Move::kInvalidMove) {
+            break;
         }
-        found_move = true;
-        break;
+        if (random_move_index < Move::kNumMoveArrayForPlayerSize - 1 &&
+            moves_output.possible_moves[random_move_index + 1] != Move::kInvalidMove) {
+            random_move_index++;
+            break;
+        }
+
+        random_move_index = (random_move_index + Move::kNumMaxPossibleMovesPerPiece -
+                             (random_move_index % Move::kNumMaxPossibleMovesPerPiece)) %
+                            Move::kNumMoveArrayForPlayerSize;
     }
 
-    if (!found_move) {
-        // no suitable move found => none or forced capture not possible
+    if (i >= Board::kHalfBoardSize) {
         return false;
     }
 
-    // Apply the chosen move
-    Board::IndexType from_idx = Move::DecodeOriginIndex(random_move_index);
-    Board::IndexType to_idx   = moves_output.possible_moves[random_move_index];
-    bool capture_happened     = moves_output.capture_moves_bitmask[random_move_index];
+    u32 move_indexes_stack[Move::kNumMaxPossibleMovesPerPiece];
+    u8 stack_size                  = 0;
+    move_indexes_stack[stack_size] = random_move_index;
+    stack_size++;
 
-    if (current_turn_ == Turn::kWhite) {
-        board_.ApplyMove<BoardCheckType::kWhite>(from_idx, to_idx, capture_happened);
-    } else {
-        board_.ApplyMove<BoardCheckType::kBlack>(from_idx, to_idx, capture_happened);
+    random_move_index++;
+    while (moves_output.possible_moves[random_move_index] != Move::kInvalidMove) {
+        if (capture_possible && !moves_output.capture_moves_bitmask[random_move_index]) {
+            random_move_index++;
+            continue;
+        }
+        move_indexes_stack[stack_size] = random_move_index;
+        stack_size++;
+        random_move_index++;
     }
 
-    // Promote
-    PromoteAndUpdateReversibleCount(!capture_happened);
+    random_move_index = move_indexes_stack[rand() % stack_size];
 
-    // Switch turn
-    SwitchTurnIfNeeded(capture_happened);
+    Board::IndexType from = Move::DecodeOriginIndex(random_move_index);
+    Move::Type to         = moves_output.possible_moves[random_move_index];
 
-    return true;
+    assert(from != Board::kInvalidIndex && to != Move::kInvalidMove);
+
+    return ApplyMove<ApplyMoveType::kNoValidate>(from, to);
 }
 
-void CheckersEngine::SwitchTurnIfNeeded(bool capture_performed)
+void CheckersEngine::SwitchTurnIfNoChainCapture(bool capture_performed)
 {
-    // If you want multi-capture in a single turn, you might skip flipping the turn
-    // in some rule sets. For now, we always flip after 1 move in this engine:
-    if (!capture_performed) {
-        current_turn_ = (current_turn_ == Turn::kWhite) ? Turn::kBlack : Turn::kWhite;
-    } else {
-        // If you do not want immediate multi-jump, also flip here:
-        current_turn_ = (current_turn_ == Turn::kWhite) ? Turn::kBlack : Turn::kWhite;
+    if (capture_performed) {
+        if ((GenerateCurrentPlayerMoves())
+                .capture_moves_bitmask[MoveGenerationOutput::CaptureFlagIndex]) {
+            has_precomputed_moves_ = true;
+            return;
+        }
+        has_precomputed_moves_ = false;
     }
+
+    current_turn_ = (current_turn_ == Turn::kWhite) ? Turn::kBlack : Turn::kWhite;
 }
 
-void CheckersEngine::PromoteAndUpdateReversibleCount(bool was_non_reversible)
+GameResult CheckersEngine::CheckGameResult() const
 {
-    if (was_non_reversible) {
-        // e.g. a piece advanced but no capture
-        board_.time_from_non_reversible_move++;
-    } else {
-        // reset for capturing or certain moves
-        board_.time_from_non_reversible_move = 0;
+    if (last_moves_output_.no_moves) {
+        return (current_turn_ == Turn::kWhite) ? GameResult::kBlackWin : GameResult::kWhiteWin;
     }
-    board_.PromoteAll();
-}
 
-GameResult CheckersEngine::CheckGameResult() const { return board_.CheckGameResult(); }
+    if (board_.white_pieces == 0) {
+        return GameResult::kBlackWin;
+    } else if (board_.black_pieces == 0) {
+        return GameResult::kWhiteWin;
+    } else {
+        if (board_.time_from_non_reversible_move >= 40) {
+            return GameResult::kDraw;
+        }
+        return GameResult::kInProgress;
+    }
+}
 
 bool CheckersEngine::RestoreFromHistoryFile(
     const std::string &history_file, std::string &error_message
@@ -211,15 +227,13 @@ bool CheckersEngine::RestoreFromHistoryFile(
                 return false;
             }
 
-            // Determine if this is a capture move
-            bool force_capture = (fields.size() > 2);  // Any multi-segment move requires captures
-
-            bool success = ApplyMove(from_idx, to_idx, force_capture);
+            bool success = ApplyMove<ApplyMoveType::kValidate>(from_idx, to_idx);
             if (!success) {
                 error_message =
                     "Failed to apply move on line " + std::to_string(line_number) + ": " + move_str;
                 return false;
             }
+            std::cout << board_;
         }
     }
 
@@ -258,6 +272,22 @@ Board::IndexType CheckersEngine::ConvertNotationToIndex(const std::string &field
         return Board::kInvalidIndex;
     }
     return index;
+}
+
+void CheckersEngine::PromoteAll() { board_.PromoteAll(); }
+
+void CheckersEngine::UpdateTimeFromNonReversibleMove(Move::Type played_move, bool was_capture)
+{
+    if (board_.IsPieceAt<BoardCheckType::kKings>(played_move) && !was_capture) {
+        board_.time_from_non_reversible_move++;
+    } else {
+        board_.time_from_non_reversible_move = 0;
+    }
+}
+
+MoveGenerationOutput CheckersEngine::GetPrecomputedMovesOrGenerate()
+{
+    return has_precomputed_moves_ ? last_moves_output_ : GenerateCurrentPlayerMoves();
 }
 
 }  // namespace CudaMctsCheckers

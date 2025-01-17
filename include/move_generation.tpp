@@ -18,9 +18,10 @@ MoveGenerationOutput MoveGenerator::GenerateMovesForPlayerCpu(const Board &board
     assert(type != BoardCheckType::kKings);
 
     MoveGenerationOutput output = {};
-    for (u32 i = 0; i < Move::kNumMoveArrayForPlayerSize; ++i) {
+    for (u32 i = 0; i < Move::kNumMoveArrayForPlayerSize; ++i) {  // TODO: Unoptimal
         output.possible_moves[i] = Move::kInvalidMove;
     }
+    output.no_moves = true;
 
     for (Board::IndexType i = 0; i < Board::kHalfBoardSize;
          ++i) {                          // TODO: count leading zeros __builtin_clz
@@ -57,12 +58,12 @@ void MoveGenerator::GenerateMovesPieceCpu(
 {
     Board::IndexType left_move_index  = board.GetPieceLeftMoveIndex<type>(i);
     Board::IndexType right_move_index = board.GetPieceRightMoveIndex<type>(i);
-    left_move_index =
-        board.IsPieceAt<type>(left_move_index) ? Board::kInvalidIndex : left_move_index;
-    right_move_index =
-        board.IsPieceAt<type>(right_move_index) ? Board::kInvalidIndex : right_move_index;
-    output.possible_moves[current_move_index + Move::kLeft]  = left_move_index;
-    output.possible_moves[current_move_index + Move::kRight] = right_move_index;
+    output.possible_moves[current_move_index + Move::kLeft] =
+        board.template IsPieceAt<BoardCheckType::kAll>(left_move_index) ? Move::kInvalidMove
+                                                                        : left_move_index;
+    output.possible_moves[current_move_index + Move::kRight] =
+        board.template IsPieceAt<BoardCheckType::kAll>(right_move_index) ? Move::kInvalidMove
+                                                                         : right_move_index;
 
     // Detect capture
     if (left_move_index != Board::kInvalidIndex &&
@@ -84,6 +85,11 @@ void MoveGenerator::GenerateMovesPieceCpu(
             board.GetPieceRightMoveIndex<type>(right_move_index);
         output.capture_moves_bitmask[current_move_index + Move::kRight]      = true;
         output.capture_moves_bitmask[MoveGenerationOutput::CaptureFlagIndex] = true;
+    }
+    if (output.no_moves) {
+        output.no_moves =
+            output.possible_moves[current_move_index + Move::kLeft] == Board::kInvalidIndex &&
+            output.possible_moves[current_move_index + Move::kRight] == Board::kInvalidIndex;
     }
 }
 
@@ -107,10 +113,12 @@ void MoveGenerator::GenerateMovesDiagonalCpu(
             output.capture_moves_bitmask[current_move_index]                     = true;
             output.capture_moves_bitmask[MoveGenerationOutput::CaptureFlagIndex] = true;
             is_capturing                                                         = true;
+            output.no_moves                                                      = false;
             current_move_index++;
         } else if (!board.IsPieceAt<type>(board_index)) {
             output.possible_moves[current_move_index]        = board_index;
             output.capture_moves_bitmask[current_move_index] = is_capturing;
+            output.no_moves                                  = false;
             current_move_index++;
         } else {
             break;

@@ -15,13 +15,7 @@ f32 GameSimulation::RunGame(Board &board, Turn turn, GameResult wanted_result)
     // Loop until game is over
     GameResult result;
     while ((result = engine.CheckGameResult()) == GameResult::kInProgress) {
-        // Apply a random move; if none available => other side effectively loses
-        if (!engine.ApplyRandomMove()) {
-            return CalcGameScore(
-                wanted_result,
-                (turn == Turn::kWhite) ? GameResult::kBlackWin : GameResult::kWhiteWin
-            );
-        }
+        volatile bool success = engine.ApplyRandomMove();
     }
 
     return CalcGameScore(wanted_result, result);

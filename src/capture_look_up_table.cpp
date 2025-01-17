@@ -29,6 +29,9 @@ std::array<std::array<Board::HalfBoard, Board::kHalfBoardSize>, Board::kHalfBoar
                 }
 
                 if (found) {
+                    table[i][j] &= ~(Board::HalfBoard(1) << i);
+                    table[i][j] &= ~(Board::HalfBoard(1) << j);
+
                     table[i][j] = ~table[i][j];
                     table[j][i] = table[i][j];
                     continue;
@@ -50,6 +53,9 @@ std::array<std::array<Board::HalfBoard, Board::kHalfBoardSize>, Board::kHalfBoar
                 }
 
                 if (found) {
+                    table[i][j] &= ~(Board::HalfBoard(1) << i);
+                    table[i][j] &= ~(Board::HalfBoard(1) << j);
+
                     table[i][j] = ~table[i][j];
                     table[j][i] = table[i][j];
                     continue;

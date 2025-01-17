@@ -269,8 +269,8 @@ FORCE_INLINE void Board::ApplyMove(IndexType from, IndexType to, bool is_caputre
                 assert(false);
                 break;
         }
+        kings &= kCaptureLookUpTable[from][to];
     }
-    kings &= kCaptureLookUpTable[from][to];
 
     if (IsPieceAt<BoardCheckType::kKings>(from)) {
         MovePiece<BoardCheckType::kKings>(from, to);

@@ -6,20 +6,6 @@ namespace CudaMctsCheckers
 {
 Board::Board() : white_pieces(0), black_pieces(0), kings(0), time_from_non_reversible_move(0) {}
 
-GameResult Board::CheckGameResult() const
-{
-    if (white_pieces == 0) {
-        return GameResult::kBlackWin;
-    } else if (black_pieces == 0) {
-        return GameResult::kWhiteWin;
-    } else {
-        if (time_from_non_reversible_move >= 40) {
-            return GameResult::kDraw;
-        }
-        return GameResult::kInProgress;
-    }
-}
-
 std::ostream& operator<<(std::ostream& os, const Board& board)
 {
     // Define the symbols

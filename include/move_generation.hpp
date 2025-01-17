@@ -11,6 +11,7 @@ struct MoveGenerationOutput {
     Move::MoveArrayForPlayer possible_moves;
     std::bitset<Move::kNumMoveArrayForPlayerSize + 1>
         capture_moves_bitmask;  // Last bit is for detected capture
+    bool no_moves = true;
 };
 
 class MoveGenerator

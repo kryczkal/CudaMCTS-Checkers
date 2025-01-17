@@ -4,6 +4,7 @@
 
 #include <array>
 #include <board.hpp>
+#include <checkers_engine.hpp>
 #include <concepts.hpp>
 #include <cpp_defines.hpp>
 #include <move.hpp>
@@ -12,8 +13,6 @@
 
 namespace CudaMctsCheckers
 {
-
-enum class Turn { kWhite, kBlack };
 
 struct PACK SimulationResult {
     f32 score;

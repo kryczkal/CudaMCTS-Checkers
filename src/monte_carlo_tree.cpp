@@ -55,6 +55,11 @@ std::vector<MonteCarloTreeNode *> MonteCarloTree::ExpandNode(MonteCarloTreeNode 
     std::vector<MonteCarloTreeNode *> expanded_nodes;
     for (u32 i = 0; i < Move::kNumMoveArrayForPlayerSize; ++i) {  // TODO: Skip invalid moves
         if (output.possible_moves[i] != Move::kInvalidMove) {
+            if (output.capture_moves_bitmask
+                    [CudaMctsCheckers::MoveGenerationOutput::CaptureFlagIndex] &&
+                !output.capture_moves_bitmask[i]) {
+                continue;
+            }
             Board new_board = node->board_;
             if (node->turn_ == Turn::kWhite) {
                 new_board.ApplyMove<BoardCheckType::kWhite>(
