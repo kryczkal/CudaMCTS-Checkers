@@ -168,6 +168,20 @@ GameResult MonteCarloTree::GetWantedResult() const
     return root_->turn_ == Turn::kWhite ? GameResult::kWhiteWin : GameResult::kBlackWin;
 }
 
+void MonteCarloTree::DescendTree(const TrieEncodedMove move)
+{
+    auto node_to_descend_to = root_->children_.find(move);
+    // Delete all children of the root except the one we are descending to
+    for (auto it = root_->children_.begin(); it != root_->children_.end(); ++it) {
+        if (it != node_to_descend_to) {
+            delete it->second;
+        }
+    }
+    root_->children_.clear();
+    delete root_;
+    root_ = node_to_descend_to->second;
+}
+
 MonteCarloTreeNode::MonteCarloTreeNode(Board board, Turn turn) : board_(board), turn_(turn)
 {
     parent_ = nullptr;

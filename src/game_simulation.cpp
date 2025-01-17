@@ -40,6 +40,8 @@ f32 GameSimulation::CalcGameScore(const GameResult &wanted_result, const GameRes
             return LoseScore;
         }
     }
+    assert(false);
+    return 0.0f;
 }
 
 }  // namespace CudaMctsCheckers

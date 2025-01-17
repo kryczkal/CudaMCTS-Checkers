@@ -45,6 +45,8 @@ class MonteCarloTree
     //                               Public Variables                               //
     //------------------------------------------------------------------------------//
 
+    void DescendTree(const TrieEncodedMove move);
+
     private:
     //------------------------------------------------------------------------------//
     //                                Private Methods                               //

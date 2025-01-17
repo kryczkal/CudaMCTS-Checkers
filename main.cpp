@@ -22,7 +22,7 @@ int main(int argc, char** argv)
     // Attach GUI and set time limit
     game.SetGui(gui);
     game.SetTimeLimit(600.0f);
-    game.SetTimeLimitAi(5.0f);
+    game.SetTimeLimitAi(10.0f);
 
     game.Play(output_file);
 

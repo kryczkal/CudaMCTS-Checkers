@@ -114,6 +114,7 @@ void CheckersGame::Play(const std::string &output_file)
                     (human_turn_ == Turn::kWhite) ? GameResult::kWhiteWin : GameResult::kBlackWin;
                 break;
             }
+            tree.DescendTree(MonteCarloTreeNode::EncodeMove(best_move.first, best_move.second));
 
             // Convert that to notation
             auto indexToNotation = [&](Board::IndexType idx) -> std::string {
