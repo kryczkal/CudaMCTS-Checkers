@@ -257,10 +257,10 @@ FORCE_INLINE void Board::ApplyMove(IndexType from, IndexType to, bool is_caputre
     assert(from < kHalfBoardSize);
     assert(to < kHalfBoardSize);
 
-    if (is_caputre) {
+    if (is_caputre) { // Shoudn't even be an if
         switch (type) {
             case BoardCheckType::kWhite:
-                black_pieces &= kCaptureLookUpTable[from][to];
+                black_pieces &= kCaptureLookUpTable[from][to]; // arguably this shoudn't even be a switch
                 break;
             case BoardCheckType::kBlack:
                 white_pieces &= kCaptureLookUpTable[from][to];

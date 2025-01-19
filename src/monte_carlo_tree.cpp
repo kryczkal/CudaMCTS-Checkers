@@ -179,6 +179,10 @@ void MonteCarloTree::DescendTree(const TrieEncodedMove move)
     }
     root_->children_.clear();
     delete root_;
+    if (node_to_descend_to == root_->children_.end()) {
+        root_ = new MonteCarloTreeNode(root_->board_, root_);
+        return;
+    }
     root_ = node_to_descend_to->second;
 }
 

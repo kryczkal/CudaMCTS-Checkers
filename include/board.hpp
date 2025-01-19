@@ -89,7 +89,7 @@ class PACK Board
         constexpr HalfBoard white_mask = (1u << kHalfBoardEdgeLength) - 1;
         constexpr HalfBoard black_mask = ((1u << kHalfBoardEdgeLength) - 1)
                                          << (kHalfBoardSize - kHalfBoardEdgeLength);
-        HalfBoard promotion;
+        HalfBoard promotion; // TODO: Why is this here?
 
         promotion = white_pieces & white_mask;
         kings |= promotion;
