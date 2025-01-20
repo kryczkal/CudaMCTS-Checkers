@@ -4,7 +4,7 @@
 #include "assert.h"
 #include "checkers_defines.hpp"
 
-namespace checkers::mcts::gpu
+namespace checkers::gpu::move_gen
 {
 enum class RowParity { kEven, kOdd };
 enum class Direction { kUpLeft, kUpRight, kDownLeft, kDownRight };
@@ -22,7 +22,7 @@ __device__ __forceinline__ constexpr u8 ReadFlag(const UnsignedFlagType flags, c
 
 __device__ __forceinline__ constexpr u8 IsOnEdge(const board_t edge_mask, const board_index_t index)
 {
-    return (edge_mask >> index);
+    return ((edge_mask >> index) & 1);
 }
 
 __device__ __forceinline__ constexpr u8 IsPieceAt(board_t board, board_index_t index) { return ((board >> index) & 1); }
@@ -34,7 +34,7 @@ __device__ __forceinline__ constexpr i8 GetParityOffset(RowParity parity)
 
 __device__ __forceinline__ constexpr RowParity GetRowParity(board_index_t index)
 {
-    assert(index < BoardConstants::kBoardSize);
+    //    assert(index < BoardConstants::kBoardSize);
 
     // TODO: Validate in assembly that this modulo is optmized to & with a bitmask
     return (index % (2 * BoardConstants::kBoardEdgeLength)) >= BoardConstants::kBoardEdgeLength ? RowParity::kOdd
@@ -55,8 +55,9 @@ __device__ __forceinline__ constexpr board_index_t GetAdjacentIndex(board_index_
             return index + BoardConstants::kBoardEdgeLength + GetParityOffset(GetRowParity(index)) + 1;
         default:
             assert(false);
+            return (board_index_t)~0;
     }
 }
-}  // namespace checkers::mcts::gpu
+}  // namespace checkers::gpu::move_gen
 
 #endif  // <MCTS_CHECKERS_INCLUDE_BOARD_HELPERS_CUH_

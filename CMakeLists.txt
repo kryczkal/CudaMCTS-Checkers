@@ -10,7 +10,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 ############################# Cuda Specific Flags ############################
 set(CMAKE_CUDA_SEPARABLE_COMPILATION ON)
-set(CMAKE_CUDA_ARCHITECTURES 60 61 62 70 75 80 86)
+set(CMAKE_CUDA_ARCHITECTURES 75 80 86)
 
 ################################ Source Files ################################
 file(GLOB_RECURSE SOURCE_FILES "src/*.cu" "src/*.cpp" main.cpp)
