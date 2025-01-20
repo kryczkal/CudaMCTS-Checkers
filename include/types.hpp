@@ -22,4 +22,4 @@ using i64 = int64_t;
 using f32 = float;
 using f64 = double;
 
-#endif // MCTS_CHECKERS_INCLUDE_TYPES_HPP_
+#endif  // MCTS_CHECKERS_INCLUDE_TYPES_HPP_
