@@ -6,9 +6,7 @@
 #include <cuda_runtime.h>
 #include <cstdio>
 
-void check_last_cuda_error(char const *file, int line) {}
-
-void CudaUtils::printCudaDeviceInfo()
+void CudaUtils::PrintCudaDeviceInfo()
 {
     int deviceCount = 0;
     cudaGetDeviceCount(&deviceCount);
@@ -92,7 +90,7 @@ void CudaUtils::printCudaDeviceInfo()
     }
 }
 
-void CudaUtils::check_cuda_error(cudaError_t err, const char *func, const char *file, int line)
+void CudaUtils::CheckCudaError(cudaError_t err, const char *func, const char *file, int line)
 {
     if (err != cudaSuccess) {
         std::cerr << "CUDA Runtime Error at: " << file << ":" << line << std::endl;
@@ -101,7 +99,7 @@ void CudaUtils::check_cuda_error(cudaError_t err, const char *func, const char *
     }
 }
 
-void CudaUtils::check_last_cuda_error(const char *file, int line)
+void CudaUtils::CheckLastCudaError(const char *file, int line)
 {
     cudaError_t const err{cudaGetLastError()};
     if (err != cudaSuccess) {

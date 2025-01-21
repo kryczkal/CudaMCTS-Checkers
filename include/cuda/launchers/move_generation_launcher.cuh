@@ -124,19 +124,19 @@ std::vector<MoveGenResult> HostGenerateMoves(const std::vector<GpuBoard>& boards
     //--------------------------------------------------------------------------
     // 4) Allocate device memory for results
     //--------------------------------------------------------------------------
-    const size_t totalSquares       = MoveGenResult::kTotalSquares;
-    const size_t movesPerPiece      = MoveGenResult::kMovesPerPiece;
-    const size_t totalMovesPerBoard = totalSquares * movesPerPiece;
-    const size_t totalMoves         = n_boards * totalMovesPerBoard;
+    const size_t kTotalSquares       = MoveGenResult::kTotalSquares;
+    const size_t kMovesPerPiece      = MoveGenResult::kMovesPerPiece;
+    const size_t kTotalMovesPerBoard = kTotalSquares * kMovesPerPiece;
+    const size_t kTotalMoves         = n_boards * kTotalMovesPerBoard;
 
     move_t* d_moves                 = nullptr;
     u8* d_move_counts               = nullptr;
     move_flags_t* d_capture_masks   = nullptr;
     move_flags_t* d_per_board_flags = nullptr;
 
-    CHECK_CUDA_ERROR(cudaMalloc(&d_moves, totalMoves * sizeof(move_t)));
-    CHECK_CUDA_ERROR(cudaMalloc(&d_move_counts, n_boards * totalSquares * sizeof(u8)));
-    CHECK_CUDA_ERROR(cudaMalloc(&d_capture_masks, n_boards * totalSquares * sizeof(move_flags_t)));
+    CHECK_CUDA_ERROR(cudaMalloc(&d_moves, kTotalMoves * sizeof(move_t)));
+    CHECK_CUDA_ERROR(cudaMalloc(&d_move_counts, n_boards * kTotalSquares * sizeof(u8)));
+    CHECK_CUDA_ERROR(cudaMalloc(&d_capture_masks, n_boards * kTotalSquares * sizeof(move_flags_t)));
     CHECK_CUDA_ERROR(cudaMalloc(&d_per_board_flags, n_boards * sizeof(move_flags_t)));
 
     //--------------------------------------------------------------------------
@@ -144,19 +144,19 @@ std::vector<MoveGenResult> HostGenerateMoves(const std::vector<GpuBoard>& boards
     //--------------------------------------------------------------------------
     {
         // Moves to invalid
-        std::vector<move_t> initMoves(totalMoves, MoveConstants::kInvalidMove);
-        CHECK_CUDA_ERROR(cudaMemcpy(d_moves, initMoves.data(), totalMoves * sizeof(move_t), cudaMemcpyHostToDevice));
+        std::vector<move_t> initMoves(kTotalMoves, MoveConstants::kInvalidMove);
+        CHECK_CUDA_ERROR(cudaMemcpy(d_moves, initMoves.data(), kTotalMoves * sizeof(move_t), cudaMemcpyHostToDevice));
 
         // Move counts to zero
-        std::vector<u8> initCounts(n_boards * totalSquares, 0);
+        std::vector<u8> initCounts(n_boards * kTotalSquares, 0);
         CHECK_CUDA_ERROR(
-            cudaMemcpy(d_move_counts, initCounts.data(), n_boards * totalSquares * sizeof(u8), cudaMemcpyHostToDevice)
+            cudaMemcpy(d_move_counts, initCounts.data(), n_boards * kTotalSquares * sizeof(u8), cudaMemcpyHostToDevice)
         );
 
         // Capture masks to zero
-        std::vector<move_flags_t> initCapture(n_boards * totalSquares, 0);
+        std::vector<move_flags_t> initCapture(n_boards * kTotalSquares, 0);
         CHECK_CUDA_ERROR(cudaMemcpy(
-            d_capture_masks, initCapture.data(), n_boards * totalSquares * sizeof(move_flags_t), cudaMemcpyHostToDevice
+            d_capture_masks, initCapture.data(), n_boards * kTotalSquares * sizeof(move_flags_t), cudaMemcpyHostToDevice
         ));
 
         // Per-board flags to zero
@@ -171,11 +171,11 @@ std::vector<MoveGenResult> HostGenerateMoves(const std::vector<GpuBoard>& boards
     //--------------------------------------------------------------------------
     // Each board needs 32 threads (1 thread per board square).
     // We'll pick a block size and number of blocks accordingly.
-    const int threadsPerBlock = 256;
-    const size_t totalThreads = n_boards * 32ULL;
-    const int blocks          = static_cast<int>((totalThreads + threadsPerBlock - 1) / threadsPerBlock);
+    const int kThreadsPerBlock = 256;
+    const size_t kTotalThreads = n_boards * 32ULL;
+    const int kBlocks          = static_cast<int>((kTotalThreads + kThreadsPerBlock - 1) / kThreadsPerBlock);
 
-    GenerateMoves<turn><<<blocks, threadsPerBlock>>>(
+    GenerateMoves<turn><<<kBlocks, kThreadsPerBlock>>>(
         d_whites, d_blacks, d_kings, d_moves, d_move_counts, d_capture_masks, d_per_board_flags,
         static_cast<u64>(n_boards)
     );
@@ -185,17 +185,17 @@ std::vector<MoveGenResult> HostGenerateMoves(const std::vector<GpuBoard>& boards
     //--------------------------------------------------------------------------
     // 7) Copy results back to host
     //--------------------------------------------------------------------------
-    std::vector<move_t> host_moves(totalMoves);
-    std::vector<u8> host_move_counts(n_boards * totalSquares);
-    std::vector<move_flags_t> host_capture_masks(n_boards * totalSquares);
+    std::vector<move_t> host_moves(kTotalMoves);
+    std::vector<u8> host_move_counts(n_boards * kTotalSquares);
+    std::vector<move_flags_t> host_capture_masks(n_boards * kTotalSquares);
     std::vector<move_flags_t> host_board_flags(n_boards);
 
-    CHECK_CUDA_ERROR(cudaMemcpy(host_moves.data(), d_moves, totalMoves * sizeof(move_t), cudaMemcpyDeviceToHost));
-    CHECK_CUDA_ERROR(
-        cudaMemcpy(host_move_counts.data(), d_move_counts, n_boards * totalSquares * sizeof(u8), cudaMemcpyDeviceToHost)
-    );
+    CHECK_CUDA_ERROR(cudaMemcpy(host_moves.data(), d_moves, kTotalMoves * sizeof(move_t), cudaMemcpyDeviceToHost));
     CHECK_CUDA_ERROR(cudaMemcpy(
-        host_capture_masks.data(), d_capture_masks, n_boards * totalSquares * sizeof(move_flags_t),
+        host_move_counts.data(), d_move_counts, n_boards * kTotalSquares * sizeof(u8), cudaMemcpyDeviceToHost
+    ));
+    CHECK_CUDA_ERROR(cudaMemcpy(
+        host_capture_masks.data(), d_capture_masks, n_boards * kTotalSquares * sizeof(move_flags_t),
         cudaMemcpyDeviceToHost
     ));
     CHECK_CUDA_ERROR(
@@ -210,18 +210,18 @@ std::vector<MoveGenResult> HostGenerateMoves(const std::vector<GpuBoard>& boards
         MoveGenResult& r = results[i];
 
         // Moves
-        const size_t offset = i * totalMovesPerBoard;
-        std::copy(host_moves.begin() + offset, host_moves.begin() + offset + totalMovesPerBoard, r.h_moves.begin());
+        const size_t offset = i * kTotalMovesPerBoard;
+        std::copy(host_moves.begin() + offset, host_moves.begin() + offset + kTotalMovesPerBoard, r.h_moves.begin());
 
         // Move counts & capture masks
-        const size_t offsetBoard = i * totalSquares;
+        const size_t offsetBoard = i * kTotalSquares;
         std::copy(
-            host_move_counts.begin() + offsetBoard, host_move_counts.begin() + offsetBoard + totalSquares,
+            host_move_counts.begin() + offsetBoard, host_move_counts.begin() + offsetBoard + kTotalSquares,
             r.h_move_counts.begin()
         );
 
         std::copy(
-            host_capture_masks.begin() + offsetBoard, host_capture_masks.begin() + offsetBoard + totalSquares,
+            host_capture_masks.begin() + offsetBoard, host_capture_masks.begin() + offsetBoard + kTotalSquares,
             r.h_capture_masks.begin()
         );
 

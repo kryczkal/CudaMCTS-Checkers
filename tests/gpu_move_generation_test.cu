@@ -23,25 +23,25 @@ static bool GlobalMoveFound(const MoveGenResult &result)
  *        The 'expected' map has move_t as keys and bool as the "isCapture" flag.
  */
 static bool FoundAllExpectedMoves(
-    const checkers::gpu::launchers::MoveGenResult &r, const std::unordered_map<checkers::move_t, bool> &expectedMoves,
-    size_t squareIndex
+    const checkers::gpu::launchers::MoveGenResult &r, const std::unordered_map<checkers::move_t, bool> &expected_moves,
+    size_t square_index
 )
 {
-    const size_t offset  = squareIndex * MoveGenResult::kMovesPerPiece;
-    const u8 actualCount = r.h_move_counts[squareIndex];
+    const size_t offset   = square_index * MoveGenResult::kMovesPerPiece;
+    const u8 actual_count = r.h_move_counts[square_index];
 
-    if (actualCount != expectedMoves.size())
+    if (actual_count != expected_moves.size())
         return false;
 
-    for (u8 i = 0; i < actualCount; ++i) {
+    for (u8 i = 0; i < actual_count; ++i) {
         checkers::move_t mv = r.h_moves[offset + i];
-        auto it             = expectedMoves.find(mv);
-        if (it == expectedMoves.end())
+        auto it             = expected_moves.find(mv);
+        if (it == expected_moves.end())
             return false;
 
         // Check if capture bit matches
-        bool wasCapture = ((r.h_capture_masks[squareIndex] >> i) & 1) == 1;
-        if (wasCapture != it->second)
+        bool was_capture = ((r.h_capture_masks[square_index] >> i) & 1) == 1;
+        if (was_capture != it->second)
             return false;
     }
     return true;
