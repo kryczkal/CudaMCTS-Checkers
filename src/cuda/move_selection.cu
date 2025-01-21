@@ -1,55 +1,88 @@
 #include <cassert>
 #include <cstdio>
+#include "cuda/board_helpers.cuh"
 #include "cuda/move_selection.cuh"
 
 namespace checkers::gpu::move_selection
 {
 
 __device__ __forceinline__ void RandomSelection(
-    const u64 board_idx,
+    const board_index_t board_idx, const u32* d_whites, const u32* d_blacks, const u32* d_kings,
     // Moves
-    const move_t* d_moves, const u8* d_move_counts,
-    // Seeds
+    const move_t* d_moves, const u8* d_move_counts, const move_flags_t* d_move_capture,
+    const move_flags_t* d_per_board_flags,
+    // Num Boards
+    const u64 n_boards,
+    // Seeds for randomness
     const u8* seeds,
     // Output
     move_t* d_best_moves
 )
 {
-    // We'll store invalid if no moves are found.
-    move_t chosen_move = MoveConstants::kInvalidMove;
+    // 1) Detect if this board has at least one capture flagged
+    const move_flags_t flags_for_this_board = d_per_board_flags[board_idx];
+    const bool capture_required = move_gen::ReadFlag(flags_for_this_board, MoveFlagsConstants::kCaptureFound) != 0U;
 
-    const u64 board_fields_begin = board_idx * BoardConstants::kBoardSize;
-
-    // Start offset in the piece array is chosen by the seed.
+    // 2) Attempt to pick one piece in random wrap-around order
+    const board_index_t board_fields_begin = board_idx * BoardConstants::kBoardSize;
     const board_index_t initial_figure_idx = seeds[board_idx] % BoardConstants::kBoardSize;
 
-    // First, find any piece with at least 1 move, searching in a wrap-around manner.
-    board_index_t chosen_figure_idx = BoardConstants::kBoardSize;  // sentinel (means not found)
+    move_t chosen_move = MoveConstants::kInvalidMove;
+
+    // We'll do at most 32 iterations to find any piece with valid moves.
     for (board_index_t i = 0; i < BoardConstants::kBoardSize; i++) {
-        board_index_t candidate = (initial_figure_idx + i) % BoardConstants::kBoardSize;
-        u8 count_for_candidate  = d_move_counts[board_fields_begin + candidate];
-        if (count_for_candidate > 0) {
-            chosen_figure_idx = candidate;
+        board_index_t candidateSquare = (initial_figure_idx + i) % BoardConstants::kBoardSize;
+        u8 count_for_candidate        = d_move_counts[board_fields_begin + candidateSquare];
+        if (count_for_candidate == 0) {
+            continue;
+        }
+
+        if (capture_required) {
+            const move_flags_t capture_mask = d_move_capture[board_fields_begin + candidateSquare];
+            if (capture_mask == 0) {
+                continue;
+            }
+
+            // We know at least one sub-move is a capture => let's pick from them
+            // We'll gather their sub-move indices into a small array.
+            u8 capturingSubMoves[16];
+            u8 capturingCount = 0;
+            for (u8 sub = 0; sub < count_for_candidate; sub++) {
+                // Is sub-th move a capture?
+                bool is_capture = move_gen::ReadFlag(capture_mask, sub) != 0U;
+                if (is_capture) {
+                    capturingSubMoves[capturingCount++] = sub;
+                }
+            }
+
+            // If capturingCount == 0, continue searching next square
+            if (capturingCount == 0) {
+                continue;
+            }
+
+            // Otherwise pick one capturing sub-move index at random
+            u8 random_sub      = seeds[board_idx] % capturingCount;
+            u8 chosen_sub_move = capturingSubMoves[random_sub];
+
+            // Flatten out to find the actual move in d_moves
+            const u64 moves_base  = (u64)board_idx * (BoardConstants::kBoardSize * move_gen::kNumMaxMovesPerPiece);
+            const u64 piece_base  = (u64)candidateSquare * move_gen::kNumMaxMovesPerPiece;
+            const u64 final_index = moves_base + piece_base + chosen_sub_move;
+
+            chosen_move = d_moves[final_index];
+            break;
+        } else {
+            // Normal (no forced captures) => pick any sub-move at random
+            u8 random_sub_move_idx = seeds[board_idx] % count_for_candidate;
+
+            const u64 moves_base  = (u64)board_idx * (BoardConstants::kBoardSize * move_gen::kNumMaxMovesPerPiece);
+            const u64 piece_base  = (u64)candidateSquare * move_gen::kNumMaxMovesPerPiece;
+            const u64 final_index = moves_base + piece_base + random_sub_move_idx;
+
+            chosen_move = d_moves[final_index];
             break;
         }
     }
-
-    // If a piece with moves was found:
-    if (chosen_figure_idx < BoardConstants::kBoardSize) {
-        // Number of valid moves for that piece
-        u8 num_piece_moves = d_move_counts[board_fields_begin + chosen_figure_idx];
-
-        // Pick a random sub-move from 0..(num_piece_moves-1)
-        u8 random_sub_move_idx = seeds[board_idx] % num_piece_moves;
-
-        // Now compute the flattened index into d_moves:
-        const u64 moves_base     = board_idx * (BoardConstants::kBoardSize * move_gen::kNumMaxMovesPerPiece);
-        const u64 piece_base     = chosen_figure_idx * move_gen::kNumMaxMovesPerPiece;
-        const u64 final_move_idx = moves_base + piece_base + random_sub_move_idx;
-
-        chosen_move = d_moves[final_move_idx];
-    }
-
     d_best_moves[board_idx] = chosen_move;
 }
 __device__ __forceinline__ void SelectBestMovesForBoardIdx(
@@ -58,7 +91,10 @@ __device__ __forceinline__ void SelectBestMovesForBoardIdx(
     const u64 n_boards, const u8* seeds, move_t* d_best_moves
 )
 {
-    RandomSelection(board_idx, d_moves, d_move_counts, seeds, d_best_moves);
+    RandomSelection(
+        board_idx, d_whites, d_blacks, d_kings, d_moves, d_move_counts, d_move_capture_mask, d_per_board_flags,
+        n_boards, seeds, d_best_moves
+    );
 }
 
 __global__ void SelectBestMoves(

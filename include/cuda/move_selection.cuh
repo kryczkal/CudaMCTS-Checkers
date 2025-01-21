@@ -7,24 +7,14 @@
 
 namespace checkers::gpu::move_selection
 {
-/**
- * \brief Selects a random move for a specific board index.
- *
- * This function first finds a piece with at least one valid move, starting from a random position
- * determined by the seed. Once a piece with valid moves is found, it randomly selects one of the
- * valid moves for that piece.
- *
- * \param board_idx The index of the board to select the move for.
- * \param d_moves Pointer to the array of moves.
- * \param d_move_counts Pointer to the array of move counts.
- * \param seeds Pointer to the array of random seeds.
- * \param d_best_moves Pointer to the array where the best moves will be stored.
- */
 __device__ __forceinline__ void RandomSelection(
-    const u64 board_idx,
+    const board_index_t board_idx, const u32* d_whites, const u32* d_blacks, const u32* d_kings,
     // Moves
-    const move_t* d_moves, const u8* d_move_counts,
-    // Seeds
+    const move_t* d_moves, const u8* d_move_counts, const move_flags_t* d_move_capture,
+    const move_flags_t* d_per_board_flags,
+    // Num Boards
+    const u64 n_boards,
+    // Seeds for randomness
     const u8* seeds,
     // Output
     move_t* d_best_moves
