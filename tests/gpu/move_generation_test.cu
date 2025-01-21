@@ -315,3 +315,63 @@ TEST(GpuMoveGenerationTest, DifficultBoard1)
 
     EXPECT_FALSE(GlobalCaptureFound(r));
 }
+
+TEST(GpuMoveGenerationTest, ExceedThreadsAndMemory)
+{
+    // Steps:
+    // 1. Query GPU properties to get maximum number of threads.
+    // 2. Compute board_count so that board_count * board_size > max_threads.
+    // 3. Create board_count copies of the same board.
+    // 4. Run HostGenerateMoves.
+    // 5. Sample some boards (left, right, middle).
+    // 6. Verify the moves are generated correctly.
+
+    // Get device properties
+    cudaDeviceProp deviceProp;
+    int device;
+    cudaGetDevice(&device);
+    CHECK_LAST_CUDA_ERROR();
+    cudaGetDeviceProperties(&deviceProp, device);
+
+    size_t maxTotalThreads = deviceProp.maxThreadsPerMultiProcessor * deviceProp.multiProcessorCount;
+
+    // Define board_count as (maxTotalThreads / board_size) +
+    size_t exceed_factor = 30;
+    size_t board_size    = BoardConstants::kBoardSize;
+    size_t board_count   = (maxTotalThreads / board_size) + exceed_factor;
+
+    // Create a sample board
+    GpuBoard sampleBoard;
+    sampleBoard.setPieceAt(12, 'W');
+    sampleBoard.setPieceAt(17, 'B');
+    sampleBoard.setPieceAt(20, 'B');
+    sampleBoard.setPieceAt(22, 'B');
+
+    // Create board_count copies of sampleBoard
+    std::vector<GpuBoard> boards(board_count, sampleBoard);
+
+    // Run HostGenerateMoves for White's turn
+    auto results = HostGenerateMoves(boards, Turn::kWhite);
+
+    // Now, sample some boards: first, middle, and last
+    size_t indices_to_test[] = {0, board_count / 2, board_count - 1};
+
+    for (size_t idx : indices_to_test) {
+        const MoveGenResult &r = results[idx];
+        // Define expected moves
+        std::unordered_map<move_t, bool> expected_moves;
+        expected_moves.emplace(cpu::move_gen::EncodeMove(12, 8), false);
+        expected_moves.emplace(cpu::move_gen::EncodeMove(12, 9), false);
+        expected_moves.emplace(cpu::move_gen::EncodeMove(12, 21), true);
+
+        // Check if all expected moves are present
+        bool all_found = FoundAllExpectedMoves(r, expected_moves, 12);
+        EXPECT_TRUE(all_found) << "Failed on board index " << idx;
+
+        // Verify global flags
+        bool moveFound    = GlobalMoveFound(r);
+        bool captureFound = GlobalCaptureFound(r);
+        EXPECT_TRUE(moveFound) << "Move flag not set for board index " << idx;
+        EXPECT_TRUE(captureFound) << "Capture flag not set for board index " << idx;
+    }
+}

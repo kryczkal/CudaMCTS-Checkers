@@ -18,6 +18,17 @@ __global__ void GenerateMoves(
     const u64 n_boards
 );
 
+template <Turn turn>
+__device__ __forceinline__ void GenerateMovesForBoardIdxFigureIdx(
+    const u64 board_idx, board_index_t figure_idx,
+    // Board States
+    const board_t *d_whites, const board_t *d_blacks, const board_t *d_kings,
+    // Moves
+    move_t *d_moves, u8 *d_move_counts, move_flags_t *d_move_capture_mask, move_flags_t *d_per_board_move_flags,
+    // Number of boards to process
+    const u64 n_boards
+);
+
 }  // namespace checkers::gpu::move_gen
 
 #include "move_generation.tpp"

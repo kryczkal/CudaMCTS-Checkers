@@ -58,18 +58,32 @@ __global__ void GenerateMoves(
     const u64 n_boards
 )
 {
-    // TODO work in a for loop
-
-    // Each thread handles exactly one figure index on one board
+    // Each thread handles exactly one figure index on a board, but handles potentially many boards
     //  -> 32 threads per board.
-    const u64 global_thread_idx = blockIdx.x * blockDim.x + threadIdx.x;
-    if (global_thread_idx >= n_boards * 32) {
-        return;
-    }
-    // Compute board index and figure index
-    const u64 board_idx            = global_thread_idx / 32;
-    const board_index_t figure_idx = (board_index_t)(global_thread_idx % 32);
 
+    for (u64 global_thread_idx = blockIdx.x * blockDim.x + threadIdx.x; global_thread_idx < n_boards * 32;
+         global_thread_idx += gridDim.x * blockDim.x) {
+        // Compute board index and figure index
+        const u64 board_idx            = global_thread_idx / 32;
+        const board_index_t figure_idx = (board_index_t)(global_thread_idx % 32);
+        GenerateMovesForBoardIdxFigureIdx<turn>(
+            board_idx, figure_idx, d_whites, d_blacks, d_kings, d_moves, d_move_counts, d_move_capture_mask,
+            d_per_board_move_flags, n_boards
+        );
+    }
+}
+
+template <Turn turn>
+__device__ __forceinline__ void GenerateMovesForBoardIdxFigureIdx(
+    const u64 board_idx, board_index_t figure_idx,
+    // Board States
+    const board_t *d_whites, const board_t *d_blacks, const board_t *d_kings,
+    // Moves
+    move_t *d_moves, u8 *d_move_counts, move_flags_t *d_move_capture_mask, move_flags_t *d_per_board_move_flags,
+    // Number of boards to process
+    const u64 n_boards
+)
+{
     // Initialize tracking
     u8 flags     = 0;
     u8 num_moves = 0;

@@ -8,11 +8,6 @@
 using namespace checkers;
 using namespace checkers::gpu::launchers;
 
-int init = []() {
-    checkers::gpu::apply_move::InitializeCaptureLookupTable();
-    return 0;
-}();
-
 TEST(GpuApplyMoveTest, NoBoardsNoMoves)
 {
     // Expect an empty result when there are no boards

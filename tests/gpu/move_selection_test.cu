@@ -100,7 +100,7 @@ TEST(GpuMoveSelectionTest, SingleBoardMultipleMoves)
     std::vector<u8> seeds(1, (u8)0);
 
     std::vector<move_t> bests;
-    static constexpr u8 kFirstSeed = 93425834;
+    static constexpr u8 kFirstSeed = (u8)93425834;
 
     seeds[0]  = kFirstSeed;
     auto best = HostSelectBestMoves(boards, allMoves, moveCounts, captureMasks, perBoardFlags, seeds);

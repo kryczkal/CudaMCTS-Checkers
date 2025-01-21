@@ -40,7 +40,7 @@ target_compile_options(${PROJECT_LIB_NAME} PUBLIC
 # CUDA Compile Options
 target_compile_options(${PROJECT_LIB_NAME} PUBLIC
         $<$<AND:$<CONFIG:Release>,$<COMPILE_LANGUAGE:CUDA>>:-O3>
-        $<$<AND:$<CONFIG:Debug>,$<COMPILE_LANGUAGE:CUDA>>:-G -g -lineinfo>
+        $<$<AND:$<CONFIG:Debug>,$<COMPILE_LANGUAGE:CUDA>>:-G -g>
 )
 
 ################################# Executable Target ############################
