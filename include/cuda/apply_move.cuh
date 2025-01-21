@@ -6,14 +6,13 @@
 
 namespace checkers::gpu::apply_move
 {
-template <Turn turn>
 __global__ void ApplyMove(
     // Board States
     board_t *d_whites, board_t *d_blacks, board_t *d_kings,
     // Moves
-    move_t *d_moves,
+    const move_t *d_moves,
     // Number of boards to process
-    u64 n_boards
+    const u64 n_boards
 );
 }
 

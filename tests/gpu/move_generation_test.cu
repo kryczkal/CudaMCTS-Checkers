@@ -3,7 +3,7 @@
 #include <vector>
 
 #include "cpu/board_helpers.hpp"
-#include "cuda/launchers/move_generation_launcher.cuh"
+#include "cuda/launchers.cuh"
 
 using namespace checkers::gpu::launchers;
 
@@ -55,11 +55,11 @@ TEST(GpuMoveGenerationTest, NoPiecesShouldGenerateNoMoves)
     GpuBoard board;
     std::vector<GpuBoard> boards{board};
 
-    auto whiteRes = HostGenerateMoves<Turn::kWhite>(boards);
+    auto whiteRes = HostGenerateMoves(boards, Turn::kWhite);
     EXPECT_FALSE(GlobalMoveFound(whiteRes[0]));
     EXPECT_FALSE(GlobalCaptureFound(whiteRes[0]));
 
-    auto blackRes = HostGenerateMoves<Turn::kBlack>(boards);
+    auto blackRes = HostGenerateMoves(boards, Turn::kBlack);
     EXPECT_FALSE(GlobalMoveFound(blackRes[0]));
     EXPECT_FALSE(GlobalCaptureFound(blackRes[0]));
 }
@@ -70,7 +70,7 @@ TEST(GpuMoveGenerationTest, SingleWhitePieceMoves)
     board.setPieceAt(12, 'W');
     std::vector<GpuBoard> boards{board};
 
-    auto results           = HostGenerateMoves<Turn::kWhite>(boards);
+    auto results           = HostGenerateMoves(boards, Turn::kWhite);
     const MoveGenResult &r = results[0];
 
     checkers::move_t m1                       = checkers::cpu::move_gen::EncodeMove(12, 8);
@@ -91,7 +91,7 @@ TEST(GpuMoveGenerationTest, SingleBlackPieceMoves)
     board.setPieceAt(5, 'B');
     std::vector<GpuBoard> boards{board};
 
-    auto results           = HostGenerateMoves<Turn::kBlack>(boards);
+    auto results           = HostGenerateMoves(boards, Turn::kBlack);
     const MoveGenResult &r = results[0];
 
     checkers::move_t m1                       = cpu::move_gen::EncodeMove(5, 9);
@@ -113,7 +113,7 @@ TEST(GpuMoveGenerationTest, WhitePieceCanCaptureBlackPiece)
     board.setPieceAt(9, 'B');
 
     std::vector<GpuBoard> boards{board};
-    auto results           = HostGenerateMoves<Turn::kWhite>(boards);
+    auto results           = HostGenerateMoves(boards, Turn::kWhite);
     const MoveGenResult &r = results[0];
 
     checkers::move_t capMove                  = cpu::move_gen::EncodeMove(13, 4);
@@ -135,7 +135,7 @@ TEST(GpuMoveGenerationTest, KingPieceGeneratesDiagonalMoves)
     board.setPieceAt(12, 'K');
     std::vector<GpuBoard> boards{board};
 
-    auto results           = HostGenerateMoves<Turn::kWhite>(boards);
+    auto results           = HostGenerateMoves(boards, Turn::kWhite);
     const MoveGenResult &r = results[0];
 
     std::unordered_map<move_t, bool> expected;
@@ -162,7 +162,7 @@ TEST(GpuMoveGenerationTest, KingPieceMoveWithCapture)
     board.setPieceAt(9, 'B');
 
     std::vector<GpuBoard> boards{board};
-    auto results           = HostGenerateMoves<Turn::kWhite>(boards);
+    auto results           = HostGenerateMoves(boards, Turn::kWhite);
     const MoveGenResult &r = results[0];
 
     std::unordered_map<move_t, bool> expected;
@@ -189,7 +189,7 @@ TEST(GpuMoveGenerationTest, KingPieceMoveBlockedByDifferentColor)
     board.setPieceAt(5, 'B');
 
     std::vector<GpuBoard> boards{board};
-    auto results           = HostGenerateMoves<Turn::kWhite>(boards);
+    auto results           = HostGenerateMoves(boards, Turn::kWhite);
     const MoveGenResult &r = results[0];
 
     std::unordered_map<move_t, bool> expected;
@@ -213,7 +213,7 @@ TEST(GpuMoveGenerationTest, KingPieceMoveBlockedBySameColor)
     board.setPieceAt(9, 'W');
 
     std::vector<GpuBoard> boards{board};
-    auto results           = HostGenerateMoves<Turn::kWhite>(boards);
+    auto results           = HostGenerateMoves(boards, Turn::kWhite);
     const MoveGenResult &r = results[0];
 
     std::unordered_map<move_t, bool> expected;
@@ -236,7 +236,7 @@ TEST(GpuMoveGenerationTest, WhitePieceBlockedBySameColorAdjacent)
     board.setPieceAt(8, 'W');
     std::vector<GpuBoard> boards{board};
 
-    auto results           = HostGenerateMoves<Turn::kWhite>(boards);
+    auto results           = HostGenerateMoves(boards, Turn::kWhite);
     const MoveGenResult &r = results[0];
 
     move_t m1                                 = cpu::move_gen::EncodeMove(12, 9);
@@ -257,7 +257,7 @@ TEST(GpuMoveGenerationTest, BlackPieceMultipleCaptureScenario)
     board.setPieceAt(21, 'W');
 
     std::vector<GpuBoard> boards{board};
-    auto results           = HostGenerateMoves<Turn::kBlack>(boards);
+    auto results           = HostGenerateMoves(boards, Turn::kBlack);
     const MoveGenResult &r = results[0];
 
     move_t capMove1                           = cpu::move_gen::EncodeMove(13, 20);
@@ -284,7 +284,7 @@ TEST(GpuMoveGenerationTest, KingPieceBlockedBySameColorInAlmostAllDirections)
     board.setPieceAt(17, 'W');
 
     std::vector<GpuBoard> boards{board};
-    auto results           = HostGenerateMoves<Turn::kWhite>(boards);
+    auto results           = HostGenerateMoves(boards, Turn::kWhite);
     const MoveGenResult &r = results[0];
 
     std::unordered_map<move_t, bool> expected = {
@@ -310,7 +310,7 @@ TEST(GpuMoveGenerationTest, DifficultBoard1)
     board.setPieceAt(9, 'K');
 
     std::vector<GpuBoard> boards{board};
-    auto results           = HostGenerateMoves<Turn::kBlack>(boards);
+    auto results           = HostGenerateMoves(boards, Turn::kBlack);
     const MoveGenResult &r = results[0];
 
     EXPECT_FALSE(GlobalCaptureFound(r));
