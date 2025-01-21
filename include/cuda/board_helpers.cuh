@@ -13,6 +13,17 @@ __device__ __forceinline__ constexpr move_t EncodeMove(const board_index_t from,
 {
     return (from | ((move_t)to << 8));
 }
+__device__ __forceinline__ board_index_t DecodeMoveFrom(move_t move)
+{
+    static constexpr move_t kFromMask = (u8)~0;
+    return move & kFromMask;
+}
+
+__device__ __forceinline__ board_index_t DecodeMoveTo(move_t move)
+{
+    static constexpr move_t kToMask = (u8)~0 << 8;
+    return (move & kToMask) >> 8;
+}
 
 template <typename UnsignedFlagType>
 __device__ __forceinline__ constexpr u8 ReadFlag(const UnsignedFlagType flags, const u8 index)

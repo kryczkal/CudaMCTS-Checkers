@@ -1,3 +1,3 @@
-#include <move_generation.cuh>
+#include <cuda/move_generation.cuh>
 
 int main() { return 0; }

@@ -22,24 +22,24 @@ namespace checkers::gpu::move_gen
 template <Turn turn>
 __device__ __forceinline__ void TryMoveForward(
     board_index_t figure_idx, board_t all_pieces, move_t *d_moves, u32 &move_idx, u8 &num_moves,
-    move_flags_t &d_move_capture_mask, move_flags_t *d_global_move_flags, u8 &flags
+    move_flags_t &d_move_capture_mask, move_flags_t &d_per_board_move_flags, u8 &flags
 );
 
 template <Turn turn>
 __device__ __forceinline__ void TryCapture(
     board_index_t figure_idx, board_t all_pieces, board_t enemy_pieces, move_t *d_moves, u32 &move_idx, u8 &num_moves,
-    move_flags_t &d_move_capture_mask, move_flags_t *d_global_move_flags, u8 &flags
+    move_flags_t &d_move_capture_mask, move_flags_t &d_per_board_move_flags, u8 &flags
 );
 
 template <Direction direction>
 __device__ __forceinline__ void TryDiagonal(
     board_index_t figure_idx, board_t all_pieces, board_t enemy_pieces, board_index_t start_idx, move_t *d_moves,
-    u32 &move_idx, u8 &num_moves, move_flags_t &d_move_capture_masks, move_flags_t *d_global_move_flags, u8 &flags
+    u32 &move_idx, u8 &num_moves, move_flags_t &d_move_capture_masks, move_flags_t &d_per_board_move_flags, u8 &flags
 );
 
 __device__ __forceinline__ void TryKingMoves(
     board_index_t figure_idx, board_t all_pieces, board_t enemy_pieces, move_t *d_moves, u32 &move_index, u8 &num_moves,
-    move_flags_t &d_move_capture_mask, move_flags_t *d_global_move_flags, u8 &flags
+    move_flags_t &d_move_capture_mask, move_flags_t &d_per_board_move_flags, u8 &flags
 );
 
 // TODO: Split flags into two bools to eliminate race conditions
@@ -53,11 +53,13 @@ __global__ void GenerateMoves(
     // Board States
     const board_t *d_whites, const board_t *d_blacks, const board_t *d_kings,
     // Moves
-    move_t *d_moves, u8 *d_move_counts, move_flags_t *d_move_capture_mask, move_flags_t *d_global_move_flags,
+    move_t *d_moves, u8 *d_move_counts, move_flags_t *d_move_capture_mask, move_flags_t *d_per_board_move_flags,
     // Number of boards to process
     const u64 n_boards
 )
 {
+    // TODO work in a for loop
+
     // Each thread handles exactly one figure index on one board
     //  -> 32 threads per board.
     const u64 global_thread_idx = blockIdx.x * blockDim.x + threadIdx.x;
@@ -73,8 +75,9 @@ __global__ void GenerateMoves(
     u8 num_moves = 0;
     u32 move_idx = (board_idx * BoardConstants::kBoardSize + figure_idx) * (kNumMaxMovesPerPiece);
 
-    move_flags_t &move_flags = d_move_capture_mask[(board_idx * BoardConstants::kBoardSize + figure_idx)];
-    move_flags               = 0;
+    move_flags_t &move_flags              = d_move_capture_mask[(board_idx * BoardConstants::kBoardSize + figure_idx)];
+    move_flags_t &per_board_move_flag_set = d_per_board_move_flags[board_idx];
+    move_flags                            = 0;
 
     // Access the bitmasks
     const board_t white_pieces = d_whites[board_idx];
@@ -92,7 +95,9 @@ __global__ void GenerateMoves(
     //
     // 1) Try forward moves
     //
-    TryMoveForward<turn>(figure_idx, all_pieces, d_moves, move_idx, num_moves, move_flags, d_global_move_flags, flags);
+    TryMoveForward<turn>(
+        figure_idx, all_pieces, d_moves, move_idx, num_moves, move_flags, per_board_move_flag_set, flags
+    );
     flags &= kOnlyIsPieceOnBoardMask;
 
     //
@@ -101,7 +106,7 @@ __global__ void GenerateMoves(
 
     // Keep only the kIsPieceOnBoardFlagIndex from previous flags
     TryCapture<turn>(
-        figure_idx, all_pieces, enemy_pieces, d_moves, move_idx, num_moves, move_flags, d_global_move_flags, flags
+        figure_idx, all_pieces, enemy_pieces, d_moves, move_idx, num_moves, move_flags, per_board_move_flag_set, flags
     );
     flags &= kOnlyIsPieceOnBoardMask;
 
@@ -111,7 +116,7 @@ __global__ void GenerateMoves(
     flags = 0;
     flags |= IsPieceAt(kings, figure_idx) << kIsPieceOnBoardFlagIndex;
     TryKingMoves(
-        figure_idx, all_pieces, enemy_pieces, d_moves, move_idx, num_moves, move_flags, d_global_move_flags, flags
+        figure_idx, all_pieces, enemy_pieces, d_moves, move_idx, num_moves, move_flags, per_board_move_flag_set, flags
     );
 
     d_move_counts[board_idx * BoardConstants::kBoardSize + figure_idx] = num_moves;
@@ -124,7 +129,7 @@ __global__ void GenerateMoves(
 template <Turn turn>
 __device__ __forceinline__ void TryMoveForward(
     const board_index_t figure_idx, const board_t all_pieces, move_t *d_moves, u32 &move_idx, u8 &num_moves,
-    move_flags_t &d_move_capture_mask, move_flags_t *d_global_move_flags, u8 &flags
+    move_flags_t &d_move_capture_mask, move_flags_t &d_per_board_move_flags, u8 &flags
 )
 {
     const board_index_t upper_left_index  = GetAdjacentIndex<Direction::kUpLeft>(figure_idx);
@@ -143,7 +148,7 @@ __device__ __forceinline__ void TryMoveForward(
         move_idx          = is_move_invalid ? move_idx : move_idx + 1;
         num_moves         = is_move_invalid ? num_moves : num_moves + 1;
         if (!is_move_invalid) {
-            *d_global_move_flags |= (1 << MoveFlagsConstants::kMoveFound);
+            d_per_board_move_flags |= (1 << MoveFlagsConstants::kMoveFound);
         }
     };
 
@@ -174,7 +179,7 @@ __device__ __forceinline__ void TryMoveForward(
 template <Turn turn>
 __device__ __forceinline__ void TryCapture(
     const board_index_t figure_idx, const board_t all_pieces, const board_t enemy_pieces, move_t *d_moves,
-    u32 &move_idx, u8 &num_moves, move_flags_t &d_move_capture_mask, move_flags_t *d_global_move_flags, u8 &flags
+    u32 &move_idx, u8 &num_moves, move_flags_t &d_move_capture_mask, move_flags_t &d_per_board_move_flags, u8 &flags
 )
 {
     // Indices for adjacent squares
@@ -222,8 +227,8 @@ __device__ __forceinline__ void TryCapture(
         move_idx  = is_capture_invalid ? move_idx : move_idx + 1;
         num_moves = is_capture_invalid ? num_moves : num_moves + 1;
         if (!is_capture_invalid) {
-            *d_global_move_flags |= (1 << MoveFlagsConstants::kMoveFound);
-            *d_global_move_flags |= (1 << MoveFlagsConstants::kCaptureFound);
+            d_per_board_move_flags |= (1 << MoveFlagsConstants::kMoveFound);
+            d_per_board_move_flags |= (1 << MoveFlagsConstants::kCaptureFound);
         }
     };
 
@@ -239,28 +244,28 @@ __device__ __forceinline__ void TryCapture(
 ////////////////////////////////////////////////////////////
 __device__ __forceinline__ void TryKingMoves(
     const board_index_t figure_idx, const board_t all_pieces, const board_t enemy_pieces, move_t *d_moves,
-    u32 &move_index, u8 &num_moves, move_flags_t &d_move_capture_mask, move_flags_t *d_global_move_flags, u8 &flags
+    u32 &move_index, u8 &num_moves, move_flags_t &d_move_capture_mask, move_flags_t &d_per_board_move_flags, u8 &flags
 )
 {
     // For a king, we just attempt all four diagonal directions
     TryDiagonal<Direction::kUpLeft>(
         figure_idx, all_pieces, enemy_pieces, figure_idx, d_moves, move_index, num_moves, d_move_capture_mask,
-        d_global_move_flags, flags
+        d_per_board_move_flags, flags
     );
     flags &= kOnlyIsPieceOnBoardMask;
     TryDiagonal<Direction::kUpRight>(
         figure_idx, all_pieces, enemy_pieces, figure_idx, d_moves, move_index, num_moves, d_move_capture_mask,
-        d_global_move_flags, flags
+        d_per_board_move_flags, flags
     );
     flags &= kOnlyIsPieceOnBoardMask;
     TryDiagonal<Direction::kDownLeft>(
         figure_idx, all_pieces, enemy_pieces, figure_idx, d_moves, move_index, num_moves, d_move_capture_mask,
-        d_global_move_flags, flags
+        d_per_board_move_flags, flags
     );
     flags &= kOnlyIsPieceOnBoardMask;
     TryDiagonal<Direction::kDownRight>(
         figure_idx, all_pieces, enemy_pieces, figure_idx, d_moves, move_index, num_moves, d_move_capture_mask,
-        d_global_move_flags, flags
+        d_per_board_move_flags, flags
     );
     flags &= kOnlyIsPieceOnBoardMask;
 }
@@ -271,8 +276,8 @@ __device__ __forceinline__ void TryKingMoves(
 template <Direction direction>
 __device__ __forceinline__ void TryDiagonal(
     const board_index_t figure_idx, const board_t all_pieces, const board_t enemy_pieces, board_index_t start_idx,
-    move_t *d_moves, u32 &move_idx, u8 &num_moves, move_flags_t &d_move_capture_masks, move_flags_t *global_move_flags,
-    u8 &flags
+    move_t *d_moves, u32 &move_idx, u8 &num_moves, move_flags_t &d_move_capture_masks,
+    move_flags_t &d_per_board_move_flags, u8 &flags
 )
 {
     static constexpr u8 kContinueFlagIndex    = 1;
@@ -289,6 +294,7 @@ __device__ __forceinline__ void TryDiagonal(
             case Direction::kDownRight:
                 return BoardConstants::kRightBoardEdgeMask | BoardConstants::kBottomBoardEdgeMask;
         }
+        return (board_t)0;
     }();
 
     flags &= kOnlyIsPieceOnBoardMask;
@@ -311,9 +317,9 @@ __device__ __forceinline__ void TryDiagonal(
         move_idx  = is_capture_invalid ? move_idx : move_idx + 1;
         num_moves = is_capture_invalid ? num_moves : num_moves + 1;
         if (!is_capture_invalid) {
-            *global_move_flags |= (1 << MoveFlagsConstants::kMoveFound);
+            d_per_board_move_flags |= (1 << MoveFlagsConstants::kMoveFound);
             if (is_capture) {
-                *global_move_flags |= (1 << MoveFlagsConstants::kCaptureFound);
+                d_per_board_move_flags |= (1 << MoveFlagsConstants::kCaptureFound);
             }
         }
     };
