@@ -1,7 +1,7 @@
 #ifndef MCTS_CHECKERS_INCLUDE_CUDA_MOVE_SELECTION_CUH_
 #define MCTS_CHECKERS_INCLUDE_CUDA_MOVE_SELECTION_CUH_
 
-#include "cuda/checkers_defines.hpp"
+#include "checkers_defines.hpp"
 #include "cuda_runtime.h"
 #include "types.hpp"
 

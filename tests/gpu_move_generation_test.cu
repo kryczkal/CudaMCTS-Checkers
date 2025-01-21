@@ -4,7 +4,7 @@
 #include <unordered_map>
 #include <vector>
 
-#include "cuda/checkers_defines.hpp"
+#include "checkers_defines.hpp"
 #include "cuda/cuda_utils.cuh"
 #include "cuda/move_generation.cuh"
 
