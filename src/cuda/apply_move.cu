@@ -1,6 +1,7 @@
 #include "cuda/apply_move.cuh"
 #include "cuda/board_helpers.cuh"
 #include "cuda/capture_lookup_table.cuh"
+#include "iostream"
 
 namespace checkers::gpu::apply_move
 {

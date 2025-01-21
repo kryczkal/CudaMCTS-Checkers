@@ -2,10 +2,16 @@
 #include <vector>
 
 #include "cpu/board_helpers.hpp"
+#include "cuda/capture_lookup_table.cuh"
 #include "cuda/launchers.cuh"
 
 using namespace checkers;
 using namespace checkers::gpu::launchers;
+
+int init = []() {
+    checkers::gpu::apply_move::InitializeCaptureLookupTable();
+    return 0;
+}();
 
 TEST(GpuApplyMoveTest, NoBoardsNoMoves)
 {
@@ -96,4 +102,96 @@ TEST(GpuApplyMoveTest, MoveKingPreservesKingFlag)
     EXPECT_EQ(updated[0].white, (1u << 16));
     EXPECT_EQ(updated[0].black, 0u);
     EXPECT_EQ(updated[0].kings, (1u << 16));
+}
+
+/**
+ * @brief Test that a king can move far diagonally
+ */
+TEST(GpuApplyMoveTest, KingFarMove)
+{
+    // Initialize a king at position 12, no blocking pieces
+    GpuBoard board;
+    board.setPieceAt(12, 'W');
+    board.setPieceAt(12, 'K');  // Make it a king
+
+    std::vector<GpuBoard> boards{board};
+    move_t move = cpu::move_gen::EncodeMove(12, 30);  // Move from 12 to 30 (far move)
+    std::vector<move_t> moves{move};
+
+    auto updated = HostApplyMoves(boards, moves);
+    ASSERT_EQ(updated.size(), 1u);
+
+    // After applying the move, the king should be at 30
+    EXPECT_EQ(updated[0].white, (1u << 30));
+    EXPECT_EQ(updated[0].black, 0u);
+    EXPECT_EQ(updated[0].kings, (1u << 30));
+}
+
+/**
+ * @brief Test that a king can perform a far capture over an enemy piece.
+ */
+TEST(GpuApplyMoveTest, KingFarCapture)
+{
+    GpuBoard board;
+    board.setPieceAt(12, 'W');
+    board.setPieceAt(12, 'K');
+    board.setPieceAt(26, 'B');
+
+    std::vector<GpuBoard> boards{board};
+    move_t captureMove = cpu::move_gen::EncodeMove(12, 30);
+    std::vector<move_t> moves{captureMove};
+
+    auto updated = HostApplyMoves(boards, moves);
+    ASSERT_EQ(updated.size(), 1u);
+
+    EXPECT_EQ(updated[0].white, (1u << 30));
+    EXPECT_EQ(updated[0].black, 0u);
+    EXPECT_EQ(updated[0].kings, (1u << 30));
+}
+
+/**
+ * @brief Test that capturing a piece does not remove other enemy pieces.
+ */
+TEST(GpuApplyMoveTest, CaptureDoesNotRemoveUncapturedEnemyPieces1)
+{
+    GpuBoard board;
+    board.setPieceAt(12, 'W');
+    board.setPieceAt(12, 'K');
+    board.setPieceAt(21, 'B');
+    board.setPieceAt(23, 'B');
+
+    std::vector<GpuBoard> boards{board};
+    move_t captureMove = cpu::move_gen::EncodeMove(12, 26);
+    std::vector<move_t> moves{captureMove};
+
+    auto updated = HostApplyMoves(boards, moves);
+    ASSERT_EQ(updated.size(), 1u);
+
+    EXPECT_EQ(updated[0].white, (1u << 26));
+    EXPECT_EQ(updated[0].black, (1u << 23));
+    EXPECT_EQ(updated[0].kings, (1u << 26));
+}
+
+/**
+ * @brief Another test to ensure that capturing a piece does not remove other enemy pieces.
+ */
+TEST(GpuApplyMoveTest, CaptureDoesNotRemoveUncapturedEnemyPieces2)
+{
+    GpuBoard board;
+    board.setPieceAt(14, 'W');
+    board.setPieceAt(14, 'K');
+    board.setPieceAt(25, 'B');
+    board.setPieceAt(4, 'B');
+    board.setPieceAt(10, 'B');
+
+    std::vector<GpuBoard> boards{board};
+    move_t captureMove = cpu::move_gen::EncodeMove(14, 28);
+    std::vector<move_t> moves{captureMove};
+
+    auto updated = HostApplyMoves(boards, moves);
+    ASSERT_EQ(updated.size(), 1u);
+
+    EXPECT_EQ(updated[0].white, (1u << 28));
+    EXPECT_EQ(updated[0].black, (1u << 4) | (1u << 10));
+    EXPECT_EQ(updated[0].kings, (1u << 28));
 }
