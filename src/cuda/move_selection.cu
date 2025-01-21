@@ -4,10 +4,7 @@
 
 namespace checkers::gpu::move_selection
 {
-/**
- * @brief For a single board, picks a random piece (cyclically from a random start) that has >=1 move,
- *        then picks a random sub-move from that piece.
- */
+
 __device__ __forceinline__ void RandomSelection(
     const u64 board_idx,
     // Moves
@@ -55,10 +52,15 @@ __device__ __forceinline__ void RandomSelection(
 
     d_best_moves[board_idx] = chosen_move;
 }
+__device__ __forceinline__ void SelectBestMovesForBoardIdx(
+    const board_index_t board_idx, const u32* d_whites, const u32* d_blacks, const u32* d_kings, const move_t* d_moves,
+    const u8* d_move_counts, const move_flags_t* d_move_capture_mask, const move_flags_t* d_per_board_flags,
+    const u64 n_boards, const u8* seeds, move_t* d_best_moves
+)
+{
+    RandomSelection(board_idx, d_moves, d_move_counts, seeds, d_best_moves);
+}
 
-/**
- * @brief CUDA kernel: One thread per board. We gather the best (random) move for that board.
- */
 __global__ void SelectBestMoves(
     // Board states (unused in random selection, but placeholders for expansions)
     const u32* d_whites, const u32* d_blacks, const u32* d_kings,
@@ -75,7 +77,10 @@ __global__ void SelectBestMoves(
 {
     for (u64 board_idx = blockIdx.x * blockDim.x + threadIdx.x; board_idx < n_boards;
          board_idx += gridDim.x * blockDim.x) {
-        RandomSelection(board_idx, d_moves, d_move_counts, seeds, d_best_moves);
+        SelectBestMovesForBoardIdx(
+            board_idx, d_whites, d_blacks, d_kings, d_moves, d_move_counts, d_move_capture_mask, d_per_board_flags,
+            n_boards, seeds, d_best_moves
+        );
     }
 }
 
