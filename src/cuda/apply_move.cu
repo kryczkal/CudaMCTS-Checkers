@@ -15,17 +15,20 @@ __global__ void ApplyMove(
 {
     u64 board_idx = blockIdx.x * blockDim.x + threadIdx.x;
     for (; board_idx < n_boards; board_idx += gridDim.x * blockDim.x) {
-        board_index_t from = move_gen::DecodeMoveFrom(d_moves[board_idx]);
-        board_index_t to   = move_gen::DecodeMoveFrom(d_moves[board_idx]);
+        board_index_t from = move_gen::DecodeMove<move_gen::MovePart::From>(d_moves[board_idx]);
+        board_index_t to   = move_gen::DecodeMove<move_gen::MovePart::To>(d_moves[board_idx]);
 
+        // board[from] = board[to]
         d_whites[board_idx] |= ((d_whites[board_idx] >> from) & 1) << to;
         d_blacks[board_idx] |= ((d_blacks[board_idx] >> from) & 1) << to;
         d_kings[board_idx] |= ((d_kings[board_idx] >> from) & 1) << to;
 
+        // board[from] = 0
         d_whites[board_idx] &= ~(1 << from);
         d_blacks[board_idx] &= ~(1 << from);
         d_kings[board_idx] &= ~(1 << from);
 
+        // 0 out everything in between the move
         board_t kCaptureMask = d_kCaptureLookUpTable[from * BoardConstants::kBoardSize + to];
         d_blacks[board_idx] &= kCaptureMask;
         d_whites[board_idx] &= kCaptureMask;

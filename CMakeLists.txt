@@ -13,7 +13,7 @@ set(CMAKE_CUDA_SEPARABLE_COMPILATION ON)
 set(CMAKE_CUDA_ARCHITECTURES 75 80 86)
 
 ################################ Source Files ################################
-file(GLOB_RECURSE SOURCE_FILES "src/*.cu" "src/*.cpp" main.cpp)
+file(GLOB_RECURSE SOURCE_FILES "src/*.cu" "src/*.cpp")
 
 ############################# Shared Library #################################
 add_library(${PROJECT_LIB_NAME} SHARED ${SOURCE_FILES})

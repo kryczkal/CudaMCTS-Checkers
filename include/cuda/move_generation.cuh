@@ -8,15 +8,14 @@
 
 namespace checkers::gpu::move_gen
 {
-
 template <Turn turn>
 __global__ void GenerateMoves(
     // Board States
-    board_t *d_whites, board_t *d_blacks, board_t *d_kings,
+    const board_t *d_whites, const board_t *d_blacks, const board_t *d_kings,
     // Moves
     move_t *d_moves, u8 *d_move_counts, move_flags_t *d_move_capture_mask, move_flags_t *d_per_board_move_flags,
     // Number of boards to process
-    u64 n_boards
+    const u64 n_boards
 );
 
 }  // namespace checkers::gpu::move_gen

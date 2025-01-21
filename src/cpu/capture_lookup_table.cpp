@@ -3,82 +3,99 @@
 #include "checkers_defines.hpp"
 #include "cpu/board_helpers.hpp"
 
-namespace checkers::cpu::move_gen
+namespace checkers::cpu::apply_move
 {
-// Define an invalid index constant
-constexpr board_index_t kInvalidIndex = static_cast<board_index_t>(~0u);
-
 std::array<std::array<board_t, BoardConstants::kBoardSize>, BoardConstants::kBoardSize> h_kCaptureLookUpTable = []() {
     std::array<std::array<board_t, BoardConstants::kBoardSize>, BoardConstants::kBoardSize> table{};
 
     for (board_index_t from = 0; from < BoardConstants::kBoardSize; ++from) {
         for (board_index_t to = from + 1; to < BoardConstants::kBoardSize; ++to) {
+            // We'll try to walk from 'from' to 'to' in DownLeft, then DownRight. If neither hits 'to', mask = ~0u.
             board_t mask = 0;
             bool found   = false;
 
-            // Attempt to find a capture path in the DownLeft direction
-            board_index_t current = from;
-            while (current != kInvalidIndex) {
-                mask |= (1u << current);
+            //--------------- Try DownLeft ---------------
+            {
+                board_index_t current = from;
+                while (true) {
+                    // Add current to path
+                    mask |= (1u << current);
 
-                if (current == to) {
-                    found = true;
-                    break;
+                    // Check if we reached the 'to' square
+                    if (current == to) {
+                        found = true;
+                        break;
+                    }
+
+                    // If on edge, we cannot keep going in this direction
+                    if (move_gen::IsOnEdge<move_gen::Direction::kDownLeft>(current)) {
+                        break;
+                    }
+
+                    // Get the next diagonal position
+                    current = move_gen::GetAdjacentIndex<move_gen::Direction::kDownLeft>(current);
                 }
 
-                // Get the next adjacent index in the DownLeft direction
-                current = GetAdjacentIndex<Direction::kDownLeft>(current);
+                if (found) {
+                    // Exclude 'from' and 'to' from the path bits so they are NOT captured
+                    mask &= ~(1u << from);
+                    mask &= ~(1u << to);
+
+                    // Invert to indicate these path-squares should be captured (0 bits)
+                    // and everything else is left intact (1 bits).
+                    mask = ~mask;
+
+                    table[from][to] = mask;
+                    table[to][from] = mask;  // Symmetric
+                    continue;                // Done for this pair
+                }
             }
 
-            if (found) {
-                // Remove the 'from' and 'to' positions from the mask
-                mask &= ~(1u << from);
-                mask &= ~(1u << to);
+            //--------------- Try DownRight ---------------
+            {
+                // Reset mask for second attempt
+                mask                  = 0;
+                board_index_t current = from;
+                while (true) {
+                    // Add current to path
+                    mask |= (1u << current);
 
-                // Invert the mask to indicate captured pieces
-                mask = ~mask;
+                    // Check if we reached the 'to' square
+                    if (current == to) {
+                        found = true;
+                        break;
+                    }
 
-                table[from][to] = mask;
-                table[to][from] = mask;  // Ensure symmetry
-                continue;
-            }
+                    // If on edge, we cannot keep going in this direction
+                    if (move_gen::IsOnEdge<move_gen::Direction::kDownRight>(current)) {
+                        break;
+                    }
 
-            // Reset mask and attempt in the DownRight direction
-            mask    = 0;
-            found   = false;
-            current = from;
-
-            while (current != kInvalidIndex) {
-                mask |= (1u << current);
-
-                if (current == to) {
-                    found = true;
-                    break;
+                    // Get the next diagonal position
+                    current = move_gen::GetAdjacentIndex<move_gen::Direction::kDownRight>(current);
                 }
 
-                // Get the next adjacent index in the DownRight direction
-                current = GetAdjacentIndex<Direction::kDownRight>(current);
+                if (found) {
+                    // Exclude 'from' and 'to'
+                    mask &= ~(1u << from);
+                    mask &= ~(1u << to);
+
+                    // Invert mask
+                    mask = ~mask;
+
+                    table[from][to] = mask;
+                    table[to][from] = mask;  // Symmetric
+                    continue;
+                }
             }
 
-            if (found) {
-                // Remove the 'from' and 'to' positions from the mask
-                mask &= ~(1u << from);
-                mask &= ~(1u << to);
-
-                // Invert the mask to indicate captured pieces
-                mask = ~mask;
-
-                table[from][to] = mask;
-                table[to][from] = mask;  // Ensure symmetry
-                continue;
-            }
-
-            // If no path is found in either direction, set mask to all bits
+            // If neither direction found a path to, then no captures
             table[from][to] = ~0u;
-            table[to][from] = table[from][to];
+            table[to][from] = ~0u;  // Symmetric
         }
     }
 
     return table;
 }();
-}  // namespace checkers::cpu::move_gen
+
+}  // namespace checkers::cpu::apply_move

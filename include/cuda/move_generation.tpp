@@ -153,20 +153,20 @@ __device__ __forceinline__ void TryMoveForward(
     };
 
     if constexpr (turn == Turn::kWhite) {
-        flags |= (IsOnEdge(BoardConstants::kLeftBoardEdgeMask, figure_idx) | IsPieceAt(all_pieces, upper_left_index))
+        flags |= (IsOnEdge<Direction::kUpLeft>(figure_idx) | IsPieceAt(all_pieces, upper_left_index))
                  << kIsUpperLeftMoveInvalid;
         writeMove(ReadFlag(flags, kIsUpperLeftMoveInvalid), upper_left_index);
 
-        flags |= (IsOnEdge(BoardConstants::kRightBoardEdgeMask, figure_idx) | IsPieceAt(all_pieces, upper_right_index))
+        flags |= (IsOnEdge<Direction::kUpRight>(figure_idx) | IsPieceAt(all_pieces, upper_right_index))
                  << kIsUpperRightMoveInvalid;
         writeMove(ReadFlag(flags, kIsUpperRightMoveInvalid), upper_right_index);
 
     } else {
-        flags |= (IsOnEdge(BoardConstants::kLeftBoardEdgeMask, figure_idx) | IsPieceAt(all_pieces, lower_left_index))
+        flags |= (IsOnEdge<Direction::kDownLeft>(figure_idx) | IsPieceAt(all_pieces, lower_left_index))
                  << kIsLowerLeftMoveInvalid;
         writeMove(ReadFlag(flags, kIsLowerLeftMoveInvalid), lower_left_index);
 
-        flags |= (IsOnEdge(BoardConstants::kRightBoardEdgeMask, figure_idx) | IsPieceAt(all_pieces, lower_right_index))
+        flags |= (IsOnEdge<Direction::kDownLeft>(figure_idx) | IsPieceAt(all_pieces, lower_right_index))
                  << kIsLowerRightMoveInvalid;
         writeMove(ReadFlag(flags, kIsLowerRightMoveInvalid), lower_right_index);
     }
@@ -195,25 +195,21 @@ __device__ __forceinline__ void TryCapture(
     const board_index_t lr_jump = GetAdjacentIndex<Direction::kDownRight>(lr);
 
     // Build up capture flags
-    flags |=
-        (IsOnEdge(BoardConstants::kLeftBoardEdgeMask, figure_idx) | IsOnEdge(BoardConstants::kLeftBoardEdgeMask, ul) |
-         !IsPieceAt(enemy_pieces, ul) | IsPieceAt(all_pieces, ul_jump))
-        << kIsUpperLeftMoveInvalid;
+    flags |= (IsOnEdge<Direction::kUpLeft>(figure_idx) | IsOnEdge<Direction::kUpLeft>(ul) |
+              !IsPieceAt(enemy_pieces, ul) | IsPieceAt(all_pieces, ul_jump))
+             << kIsUpperLeftMoveInvalid;
 
-    flags |=
-        (IsOnEdge(BoardConstants::kLeftBoardEdgeMask, figure_idx) | IsOnEdge(BoardConstants::kLeftBoardEdgeMask, ll) |
-         !IsPieceAt(enemy_pieces, ll) | IsPieceAt(all_pieces, ll_jump))
-        << kIsLowerLeftMoveInvalid;
+    flags |= (IsOnEdge<Direction::kDownLeft>(figure_idx) | IsOnEdge<Direction::kDownLeft>(ll) |
+              !IsPieceAt(enemy_pieces, ll) | IsPieceAt(all_pieces, ll_jump))
+             << kIsLowerLeftMoveInvalid;
 
-    flags |=
-        (IsOnEdge(BoardConstants::kRightBoardEdgeMask, figure_idx) | IsOnEdge(BoardConstants::kRightBoardEdgeMask, ur) |
-         !IsPieceAt(enemy_pieces, ur) | IsPieceAt(all_pieces, ur_jump))
-        << kIsUpperRightMoveInvalid;
+    flags |= (IsOnEdge<Direction::kUpRight>(figure_idx) | IsOnEdge<Direction::kUpRight>(ur) |
+              !IsPieceAt(enemy_pieces, ur) | IsPieceAt(all_pieces, ur_jump))
+             << kIsUpperRightMoveInvalid;
 
-    flags |=
-        (IsOnEdge(BoardConstants::kRightBoardEdgeMask, figure_idx) | IsOnEdge(BoardConstants::kRightBoardEdgeMask, lr) |
-         !IsPieceAt(enemy_pieces, lr) | IsPieceAt(all_pieces, lr_jump))
-        << kIsLowerRightMoveInvalid;
+    flags |= (IsOnEdge<Direction::kDownRight>(figure_idx) | IsOnEdge<Direction::kDownRight>(lr) |
+              !IsPieceAt(enemy_pieces, lr) | IsPieceAt(all_pieces, lr_jump))
+             << kIsLowerRightMoveInvalid;
 
     // Helper lambda to record captures
     auto writeCapture = [&](bool is_capture_invalid, board_index_t to_idx) {
@@ -283,22 +279,9 @@ __device__ __forceinline__ void TryDiagonal(
     static constexpr u8 kContinueFlagIndex    = 1;
     static constexpr u8 kInvalidNextFlagIndex = 2;
     static constexpr u8 kInvalidJumpFlagIndex = 3;
-    static constexpr board_t kEdgeMask        = []() constexpr {
-        switch (direction) {
-            case Direction::kUpLeft:
-                return BoardConstants::kLeftBoardEdgeMask | BoardConstants::kTopBoardEdgeMask;
-            case Direction::kUpRight:
-                return BoardConstants::kRightBoardEdgeMask | BoardConstants::kTopBoardEdgeMask;
-            case Direction::kDownLeft:
-                return BoardConstants::kLeftBoardEdgeMask | BoardConstants::kBottomBoardEdgeMask;
-            case Direction::kDownRight:
-                return BoardConstants::kRightBoardEdgeMask | BoardConstants::kBottomBoardEdgeMask;
-        }
-        return (board_t)0;
-    }();
 
     flags &= kOnlyIsPieceOnBoardMask;
-    const bool shouldStop = !ReadFlag(flags, kIsPieceOnBoardFlagIndex) || IsOnEdge(kEdgeMask, start_idx);
+    const bool shouldStop = !ReadFlag(flags, kIsPieceOnBoardFlagIndex) || IsOnEdge<direction>(start_idx);
     flags |= (!shouldStop) << kContinueFlagIndex;
     board_index_t current_idx = start_idx;
 
@@ -330,11 +313,11 @@ __device__ __forceinline__ void TryDiagonal(
         const board_index_t next_jump_idx = GetAdjacentIndex<direction>(next_idx);
 
         // Try moving
-        flags |= (IsOnEdge(kEdgeMask, current_idx) | IsPieceAt(all_pieces, next_idx)) << kInvalidNextFlagIndex;
+        flags |= (IsOnEdge<direction>(current_idx) | IsPieceAt(all_pieces, next_idx)) << kInvalidNextFlagIndex;
         writeKingMove(ReadFlag(flags, kInvalidNextFlagIndex), capturing, next_idx);
 
         // Try capturing
-        flags |= (IsOnEdge(kEdgeMask, current_idx) | IsOnEdge(kEdgeMask, next_jump_idx) |
+        flags |= (IsOnEdge<direction>(current_idx) | IsOnEdge<direction>(next_jump_idx) |
                   !IsPieceAt(enemy_pieces, next_idx) | IsPieceAt(all_pieces, next_jump_idx))
                  << kInvalidJumpFlagIndex;
         capturing = capturing || !ReadFlag(flags, kInvalidJumpFlagIndex);
@@ -343,7 +326,7 @@ __device__ __forceinline__ void TryDiagonal(
         }
 
         current_idx            = next_idx;
-        const bool shouldStop2 = IsOnEdge(kEdgeMask, next_idx) ||
+        const bool shouldStop2 = IsOnEdge<direction>(next_idx) ||
                                  (ReadFlag(flags, kInvalidNextFlagIndex) && ReadFlag(flags, kInvalidJumpFlagIndex));
         flags &= kOnlyIsPieceOnBoardMask;
         flags |= (!shouldStop2 << kContinueFlagIndex);
