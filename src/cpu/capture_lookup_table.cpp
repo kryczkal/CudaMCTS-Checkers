@@ -1,6 +1,6 @@
 #include "cpu/capture_lookup_table.hpp"
 #include <array>
-#include "checkers_defines.hpp"
+#include "common/checkers_defines.hpp"
 #include "cpu/board_helpers.hpp"
 
 namespace checkers::cpu::apply_move

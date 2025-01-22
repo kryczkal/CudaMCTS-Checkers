@@ -3,7 +3,7 @@
 
 #include <iostream>
 #include "board_helpers.cuh"
-#include "checkers_defines.hpp"
+#include "common/checkers_defines.hpp"
 #include "cuda_runtime.h"
 #include "device_launch_parameters.h"
 

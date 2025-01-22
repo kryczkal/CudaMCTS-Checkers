@@ -1,5 +1,5 @@
 #include <iostream>
-#include "checkers_defines.hpp"
+#include "common/checkers_defines.hpp"
 #include "cuda/apply_move.cuh"
 #include "cuda/board_helpers.cuh"
 #include "cuda/capture_lookup_table.cuh"
@@ -11,7 +11,7 @@ __device__ void ApplyMoveOnSingleBoard(move_t move, board_t& white_bits, board_t
 {
     board_index_t from = move_gen::DecodeMove<move_gen::MovePart::From>(move);
     board_index_t to   = move_gen::DecodeMove<move_gen::MovePart::To>(move);
-    if (move == move_gen::MoveConstants::kInvalidMove) {
+    if (move == kInvalidMove) {
         // No move to apply
         return;
     }

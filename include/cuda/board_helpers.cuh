@@ -2,7 +2,7 @@
 #define MCTS_CHECKERS_INCLUDE_BOARD_HELPERS_CUH_
 
 #include "cassert"
-#include "checkers_defines.hpp"
+#include "common/checkers_defines.hpp"
 
 namespace checkers::gpu
 {

@@ -2,7 +2,7 @@
 #include <unordered_map>
 #include <vector>
 
-#include "checkers_defines.hpp"
+#include "common/checkers_defines.hpp"
 #include "cpu/board_helpers.hpp"
 #include "cuda/launchers.cuh"
 

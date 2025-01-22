@@ -1,5 +1,5 @@
-#ifndef MCTS_CHECKERS_INCLUDE_CHECKERS_DEFINES_HPP_
-#define MCTS_CHECKERS_INCLUDE_CHECKERS_DEFINES_HPP_
+#ifndef MCTS_CHECKERS_INCLUDE_COMMON_CHECKERS_DEFINES_HPP_
+#define MCTS_CHECKERS_INCLUDE_COMMON_CHECKERS_DEFINES_HPP_
 
 #include "types.hpp"
 
@@ -13,6 +13,8 @@ using board_t       = u32;
 using move_t        = u16;
 using board_index_t = u8;
 using move_flags_t  = u16;
+
+static constexpr move_t kInvalidMove = 0xFFFF;
 
 ///////////////////////////////// Constants //////////////////////////////////
 
@@ -65,12 +67,6 @@ namespace move_gen
 {
 static constexpr u8 kNumMaxMovesPerPiece = 13;
 
-class MoveConstants
-{
-    public:
-    static constexpr move_t kInvalidMove = 0xFFFF;
-};
-
 class MoveFlagsConstants
 {
     public:
@@ -82,4 +78,4 @@ class MoveFlagsConstants
 
 }  // namespace checkers
 
-#endif  // MCTS_CHECKERS_INCLUDE_CHECKERS_DEFINES_HPP_
+#endif  // MCTS_CHECKERS_INCLUDE_COMMON_CHECKERS_DEFINES_HPP_

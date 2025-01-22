@@ -1,10 +1,9 @@
 #ifndef MCTS_CHECKERS_INCLUDE_CUDA_GAME_SIMULATION_CUH_
 #define MCTS_CHECKERS_INCLUDE_CUDA_GAME_SIMULATION_CUH_
 
+#include "common/checkers_defines.hpp"
 #include "cuda_runtime.h"
 #include "device_launch_parameters.h"
-
-#include "checkers_defines.hpp"
 
 namespace checkers::gpu
 {

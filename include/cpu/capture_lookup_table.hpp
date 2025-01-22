@@ -3,7 +3,7 @@
 
 #include "array"
 #include "board_helpers.hpp"
-#include "checkers_defines.hpp"
+#include "common/checkers_defines.hpp"
 
 namespace checkers::cpu::apply_move
 {

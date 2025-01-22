@@ -1,4 +1,4 @@
-#include "checkers_defines.hpp"
+#include "common/checkers_defines.hpp"
 #include "cuda/apply_move.cuh"
 #include "cuda/board_helpers.cuh"
 #include "cuda/game_simulation.cuh"
@@ -205,7 +205,7 @@ __global__ void SimulateCheckersGamesOneBoardPerBlock(
                 SelectBestMoveForSingleBoard(w, b, k, boardMoves, boardMoveCounts, boardCaptures, flags, localSeed);
 
             s_seed[kLocalBoardIndex] = (u8)(localSeed + 13);
-            if (chosen == checkers::gpu::move_gen::MoveConstants::kInvalidMove) {
+            if (chosen == kInvalidMove) {
                 // Current side cannot move => other side wins
                 s_outcome[kLocalBoardIndex] = !s_current_turn[kLocalBoardIndex] ? 2 : 1;
             }
@@ -295,7 +295,7 @@ __global__ void SimulateCheckersGamesOneBoardPerBlock(
                 );
                 s_seed[kLocalBoardIndex] = (u8)(local_seed + 7);
 
-                if (chainMv == checkers::gpu::move_gen::MoveConstants::kInvalidMove) {
+                if (chainMv == kInvalidMove) {
                     s_chosen_move[kLocalBoardIndex] = chainMv;
                 } else {
                     checkers::gpu::apply_move::ApplyMoveOnSingleBoard(
@@ -307,7 +307,7 @@ __global__ void SimulateCheckersGamesOneBoardPerBlock(
             }
             __syncthreads();
 
-            if (s_chosen_move[kLocalBoardIndex] == checkers::gpu::move_gen::MoveConstants::kInvalidMove) {
+            if (s_chosen_move[kLocalBoardIndex] == kInvalidMove) {
                 break;
             }
         }

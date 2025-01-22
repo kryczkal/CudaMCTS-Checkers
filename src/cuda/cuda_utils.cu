@@ -1,7 +1,5 @@
 #include <iostream>
-#include "cuda/apply_move.cuh"
 #include "cuda/cuda_utils.cuh"
-#include "cuda/move_selection.cuh"
 
 #include <cuda_runtime.h>
 #include <cstdio>

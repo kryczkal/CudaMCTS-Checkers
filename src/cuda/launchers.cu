@@ -1,5 +1,5 @@
 #include <random>
-#include "checkers_defines.hpp"
+#include "common/checkers_defines.hpp"
 #include "cuda/apply_move.cuh"
 #include "cuda/board_helpers.cuh"
 #include "cuda/capture_lookup_table.cuh"
@@ -85,7 +85,7 @@ std::vector<MoveGenResult> HostGenerateMoves(const std::vector<GpuBoard>& boards
     //--------------------------------------------------------------------------
     {
         // Moves to invalid
-        std::vector<move_t> initMoves(kTotalMoves, MoveConstants::kInvalidMove);
+        std::vector<move_t> initMoves(kTotalMoves, kInvalidMove);
         CHECK_CUDA_ERROR(cudaMemcpy(d_moves, initMoves.data(), kTotalMoves * sizeof(move_t), cudaMemcpyHostToDevice));
 
         // Move counts to zero
@@ -285,7 +285,7 @@ std::vector<move_t> HostSelectBestMoves(
     using namespace checkers::gpu::move_selection;
 
     const size_t n_boards = boards.size();
-    std::vector<move_t> bestMoves(n_boards, move_gen::MoveConstants::kInvalidMove);
+    std::vector<move_t> bestMoves(n_boards, kInvalidMove);
 
     if (n_boards == 0) {
         return bestMoves;
@@ -352,7 +352,7 @@ std::vector<move_t> HostSelectBestMoves(
     CHECK_CUDA_ERROR(cudaMemcpy(d_seeds, seeds.data(), n_boards * sizeof(u8), cudaMemcpyHostToDevice));
 
     // Initialize d_best_moves to invalid
-    std::vector<move_t> initBest(n_boards, move_gen::MoveConstants::kInvalidMove);
+    std::vector<move_t> initBest(n_boards, kInvalidMove);
     CHECK_CUDA_ERROR(cudaMemcpy(d_best_moves, initBest.data(), n_boards * sizeof(move_t), cudaMemcpyHostToDevice));
 
     //--------------------------------------------------------------------------

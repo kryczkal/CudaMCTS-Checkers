@@ -2,7 +2,7 @@
 #define MCTS_CHECKERS_INCLUDE_CUDA_CAPTURE_LOOKUP_TABLE_CUH_
 
 #include "array"
-#include "checkers_defines.hpp"
+#include "common/checkers_defines.hpp"
 
 namespace checkers::gpu::apply_move
 {

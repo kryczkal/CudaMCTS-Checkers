@@ -4,7 +4,7 @@
 #include "cuda_runtime.h"
 #include "types.hpp"
 
-#include "checkers_defines.hpp"
+#include "common/checkers_defines.hpp"
 
 namespace checkers::gpu::move_gen
 {

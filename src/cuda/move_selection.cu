@@ -1,6 +1,6 @@
 #include <cassert>
 #include <cstdio>
-#include "checkers_defines.hpp"
+#include "common/checkers_defines.hpp"
 #include "cuda/board_helpers.cuh"
 #include "cuda/move_selection.cuh"
 
@@ -17,7 +17,7 @@ __device__ move_t SelectRandomMoveForSingleBoard(
     // Detect if the board has a capture flagged
     const bool capture_required = ReadFlag(per_board_flags, move_gen::MoveFlagsConstants::kCaptureFound);
 
-    move_t chosen_move = move_gen::MoveConstants::kInvalidMove;
+    move_t chosen_move = kInvalidMove;
 
     // Attempt picking one piece in random wrap-around order
     const board_index_t initial_figure_idx = seed % BoardConstants::kBoardSize;

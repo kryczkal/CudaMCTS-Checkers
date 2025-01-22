@@ -5,9 +5,10 @@
 #include <cstring>
 #include <vector>
 
-#include "checkers_defines.hpp"
+#include "common/checkers_defines.hpp"
 #include "cuda/cuda_utils.cuh"
 #include "cuda/move_generation.cuh"
+#include "mcts/simulation_results.hpp"
 
 namespace checkers::gpu::launchers
 {
@@ -63,14 +64,6 @@ struct SimulationParam {
 };
 
 /**
- * \brief Per-batch result: final averaged score + the number of simulations.
- */
-struct SimulationResult {
-    f64 score;
-    u64 n_simulations;
-};
-
-/**
  * @brief Holds the result of calling the GPU-based GenerateMoves kernel
  *        for exactly one board.
  */
@@ -89,7 +82,7 @@ struct MoveGenResult {
     std::vector<move_flags_t> h_per_board_flags;
 
     MoveGenResult()
-        : h_moves(kTotalSquares * kMovesPerPiece, move_gen::MoveConstants::kInvalidMove),
+        : h_moves(kTotalSquares * kMovesPerPiece, kInvalidMove),
           h_move_counts(kTotalSquares, 0),
           h_capture_masks(kTotalSquares, 0),
           h_per_board_flags(1, 0)

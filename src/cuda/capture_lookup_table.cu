@@ -1,4 +1,4 @@
-#include "checkers_defines.hpp"
+#include "common/checkers_defines.hpp"
 #include "cpu/capture_lookup_table.hpp"
 #include "cuda/apply_move.cuh"
 #include "cuda/board_helpers.cuh"

@@ -2,7 +2,7 @@
 #define MCTS_CHECKERS_INCLUDE_CPU_BOARD_HELPERS_HPP_
 
 #include "assert.h"
-#include "checkers_defines.hpp"
+#include "common/checkers_defines.hpp"
 
 namespace checkers::cpu
 {

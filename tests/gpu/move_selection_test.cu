@@ -1,7 +1,7 @@
 #include <gtest/gtest.h>
 #include <vector>
 
-#include "checkers_defines.hpp"
+#include "common/checkers_defines.hpp"
 #include "cpu/board_helpers.hpp"
 #include "cuda/launchers.cuh"
 
@@ -35,7 +35,7 @@ TEST(GpuMoveSelectionTest, SingleBoardSingleMove)
     std::vector<GpuBoard> boards{board};
 
     // Flattened moves array: 1 board * 32 squares * 13 possible moves
-    std::vector<move_t> allMoves(kTotalSquares * kMovesPerPiece, move_gen::MoveConstants::kInvalidMove);
+    std::vector<move_t> allMoves(kTotalSquares * kMovesPerPiece, kInvalidMove);
 
     // We'll place a single valid move for square 12 at subindex 0
     move_t validMove          = static_cast<move_t>(12 | (8u << 8));
@@ -75,7 +75,7 @@ TEST(GpuMoveSelectionTest, SingleBoardMultipleMoves)
     std::vector<GpuBoard> boards{board};
 
     // Build flattened moves array
-    std::vector<move_t> allMoves(totalSquares * movesPerPiece, move_gen::MoveConstants::kInvalidMove);
+    std::vector<move_t> allMoves(totalSquares * movesPerPiece, kInvalidMove);
 
     // Suppose piece 12 has 3 valid moves
     move_t m0 = static_cast<move_t>(12 | (8u << 8));
@@ -133,7 +133,7 @@ TEST(GpuMoveSelectionTest, CaptureMoveIsSelectedOverNonCaptureMove)
     board.setPieceAt(12, 'W');  // White piece
     std::vector<GpuBoard> boards{board};
 
-    std::vector<move_t> allMoves(kTotalSquares * kMovesPerPiece, move_gen::MoveConstants::kInvalidMove);
+    std::vector<move_t> allMoves(kTotalSquares * kMovesPerPiece, kInvalidMove);
 
     move_t normalMove  = cpu::move_gen::EncodeMove(12, 8);  // Normal move
     move_t captureMove = cpu::move_gen::EncodeMove(12, 4);  // Capture move
@@ -174,7 +174,7 @@ TEST(GpuMoveSelectionTest, OnlyCaptureMovesAreSelectedWhenMultipleCapturesAvaila
 
     std::vector<GpuBoard> boards{board};
 
-    std::vector<move_t> allMoves(kTotalSquares * kMovesPerPiece, move_gen::MoveConstants::kInvalidMove);
+    std::vector<move_t> allMoves(kTotalSquares * kMovesPerPiece, kInvalidMove);
 
     move_t normalMove12  = cpu::move_gen::EncodeMove(12, 8);  // Normal move
     move_t captureMove12 = cpu::move_gen::EncodeMove(12, 4);  // Capture move

@@ -1,7 +1,7 @@
 #ifndef MCTS_CHECKERS_INCLUDE_CUDA_APPLY_MOVE_CUH_
 #define MCTS_CHECKERS_INCLUDE_CUDA_APPLY_MOVE_CUH_
 
-#include "checkers_defines.hpp"
+#include "common/checkers_defines.hpp"
 #include "cuda_runtime.h"
 
 namespace checkers::gpu::apply_move
