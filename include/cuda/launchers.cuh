@@ -51,6 +51,18 @@ struct GpuBoard {
 };
 
 /**
+ * @brief Holds simulation parameters for a single board configuration.
+ *        We'll do 'n_simulations' random rollouts from that position.
+ */
+struct SimulationParam {
+    board_t white;
+    board_t black;
+    board_t king;
+    u8 startTurn;       // 0=White starts, 1=Black starts
+    u64 n_simulations;  // how many times to simulate from this config
+};
+
+/**
  * @brief Holds the result of calling the GPU-based GenerateMoves kernel
  *        for exactly one board.
  */
@@ -114,26 +126,18 @@ std::vector<move_t> HostSelectBestMoves(
 );
 
 /**
- * @brief Launches the simulation of multiple checkers games on the GPU.
+ * @brief Updated function that:
+ *   - Accepts a vector of SimulationParam.
+ *   - Generates random seeds for the total number of requested simulations internally.
+ *   - Launches the updated kernel that processes all simulations in one go.
  *
- * This function initializes the necessary data structures, copies board states
- * to the GPU, launches the simulation kernel, retrieves the outcomes, and cleans up.
+ * @param params          Vector of SimulationParam structures.
+ * @param max_iterations  If we reach that many half-moves, declare a draw.
  *
- * @param h_whites      Host vector of white piece bitmasks for each board.
- * @param h_blacks      Host vector of black piece bitmasks for each board.
- * @param h_kings       Host vector of king bitmasks for each board.
- * @param h_seeds       Host vector of random seeds (one per board).
- * @param max_iterations Maximum number of half-moves to simulate before declaring a draw.
- *
- * @return A vector of outcomes for each board:
- *         - 1 = White wins
- *         - 2 = Black wins
- *         - 3 = Draw
+ * @return A vector of size "sum_of(params[i].n_simulations)" with each entry being
+ *         2=win,1=draw,0=lose from perspective of 'startTurn'.
  */
-std::vector<u8> HostSimulateCheckersGames(
-    const std::vector<board_t>& h_whites, const std::vector<board_t>& h_blacks, const std::vector<board_t>& h_kings,
-    const std::vector<u8>& h_seeds, int max_iterations
-);
+std::vector<u8> HostSimulateCheckersGames(const std::vector<SimulationParam>& params, int max_iterations);
 }  // namespace checkers::gpu::launchers
 
 #endif  // MCTS_CHECKERS_INCLUDE_CUDA_LAUNCHERS_CUH_

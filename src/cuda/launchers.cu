@@ -1,3 +1,4 @@
+#include <random>
 #include "checkers_defines.hpp"
 #include "cuda/apply_move.cuh"
 #include "cuda/board_helpers.cuh"
@@ -206,7 +207,7 @@ std::vector<GpuBoard> HostApplyMoves(const std::vector<GpuBoard>& boards, const 
     }
 
     //--------------------------------------------------------------------------
-    // 1) Prepare host arrays for white, black, and king bitmasks
+    // Prepare host arrays for white, black, and king bitmasks
     //--------------------------------------------------------------------------
     std::vector<board_t> host_whites(n_boards), host_blacks(n_boards), host_kings(n_boards);
     for (size_t i = 0; i < n_boards; ++i) {
@@ -216,7 +217,7 @@ std::vector<GpuBoard> HostApplyMoves(const std::vector<GpuBoard>& boards, const 
     }
 
     //--------------------------------------------------------------------------
-    // 2) Allocate device memory
+    // Allocate device memory
     //--------------------------------------------------------------------------
     board_t* d_whites = nullptr;
     board_t* d_blacks = nullptr;
@@ -229,7 +230,7 @@ std::vector<GpuBoard> HostApplyMoves(const std::vector<GpuBoard>& boards, const 
     CHECK_CUDA_ERROR(cudaMalloc(&d_moves, n_boards * sizeof(move_t)));
 
     //--------------------------------------------------------------------------
-    // 3) Copy host data to device
+    // Copy host data to device
     //--------------------------------------------------------------------------
     CHECK_CUDA_ERROR(cudaMemcpy(d_whites, host_whites.data(), n_boards * sizeof(board_t), cudaMemcpyHostToDevice));
     CHECK_CUDA_ERROR(cudaMemcpy(d_blacks, host_blacks.data(), n_boards * sizeof(board_t), cudaMemcpyHostToDevice));
@@ -237,7 +238,7 @@ std::vector<GpuBoard> HostApplyMoves(const std::vector<GpuBoard>& boards, const 
     CHECK_CUDA_ERROR(cudaMemcpy(d_moves, moves.data(), n_boards * sizeof(move_t), cudaMemcpyHostToDevice));
 
     //--------------------------------------------------------------------------
-    // 4) Launch the ApplyMove kernel
+    // Launch the kernel
     //--------------------------------------------------------------------------
     const int threadsPerBlock = 256;
     const int blocks          = static_cast<int>((n_boards + threadsPerBlock - 1) / threadsPerBlock);
@@ -247,14 +248,14 @@ std::vector<GpuBoard> HostApplyMoves(const std::vector<GpuBoard>& boards, const 
     CHECK_CUDA_ERROR(cudaDeviceSynchronize());
 
     //--------------------------------------------------------------------------
-    // 5) Copy results back to host
+    // Copy results back to host
     //--------------------------------------------------------------------------
     CHECK_CUDA_ERROR(cudaMemcpy(host_whites.data(), d_whites, n_boards * sizeof(board_t), cudaMemcpyDeviceToHost));
     CHECK_CUDA_ERROR(cudaMemcpy(host_blacks.data(), d_blacks, n_boards * sizeof(board_t), cudaMemcpyDeviceToHost));
     CHECK_CUDA_ERROR(cudaMemcpy(host_kings.data(), d_kings, n_boards * sizeof(board_t), cudaMemcpyDeviceToHost));
 
     //--------------------------------------------------------------------------
-    // 6) Update our returned board states
+    // Update our returned board states
     //--------------------------------------------------------------------------
     for (size_t i = 0; i < n_boards; ++i) {
         updatedBoards[i].white = host_whites[i];
@@ -263,7 +264,7 @@ std::vector<GpuBoard> HostApplyMoves(const std::vector<GpuBoard>& boards, const 
     }
 
     //--------------------------------------------------------------------------
-    // 7) Cleanup
+    // Cleanup
     //--------------------------------------------------------------------------
     CHECK_CUDA_ERROR(cudaFree(d_whites));
     CHECK_CUDA_ERROR(cudaFree(d_blacks));
@@ -290,7 +291,7 @@ std::vector<move_t> HostSelectBestMoves(
     }
 
     //--------------------------------------------------------------------------
-    // 1) Prepare host arrays for white, black, and king bitmasks
+    // Prepare host arrays
     //--------------------------------------------------------------------------
     std::vector<board_t> h_whites(n_boards), h_blacks(n_boards), h_kings(n_boards);
     for (size_t i = 0; i < n_boards; ++i) {
@@ -308,7 +309,7 @@ std::vector<move_t> HostSelectBestMoves(
     }
 
     //--------------------------------------------------------------------------
-    // 2) Allocate device memory
+    // Allocate device memory
     //--------------------------------------------------------------------------
     u32* d_whites                   = nullptr;
     u32* d_blacks                   = nullptr;
@@ -331,7 +332,7 @@ std::vector<move_t> HostSelectBestMoves(
     CHECK_CUDA_ERROR(cudaMalloc(&d_best_moves, n_boards * sizeof(move_t)));
 
     //--------------------------------------------------------------------------
-    // 3) Copy host data to device
+    // Copy host data to device
     //--------------------------------------------------------------------------
     CHECK_CUDA_ERROR(cudaMemcpy(d_whites, h_whites.data(), n_boards * sizeof(u32), cudaMemcpyHostToDevice));
     CHECK_CUDA_ERROR(cudaMemcpy(d_blacks, h_blacks.data(), n_boards * sizeof(u32), cudaMemcpyHostToDevice));
@@ -354,7 +355,7 @@ std::vector<move_t> HostSelectBestMoves(
     CHECK_CUDA_ERROR(cudaMemcpy(d_best_moves, initBest.data(), n_boards * sizeof(move_t), cudaMemcpyHostToDevice));
 
     //--------------------------------------------------------------------------
-    // 4) Launch the SelectBestMoves kernel
+    // Launch the kernel
     //--------------------------------------------------------------------------
     const int threadsPerBlock = 256;
     const size_t totalThreads = n_boards;
@@ -368,12 +369,12 @@ std::vector<move_t> HostSelectBestMoves(
     CHECK_CUDA_ERROR(cudaDeviceSynchronize());
 
     //--------------------------------------------------------------------------
-    // 5) Copy results back to host
+    // Copy results back to host
     //--------------------------------------------------------------------------
     CHECK_CUDA_ERROR(cudaMemcpy(bestMoves.data(), d_best_moves, n_boards * sizeof(move_t), cudaMemcpyDeviceToHost));
 
     //--------------------------------------------------------------------------
-    // 6) Cleanup
+    // Cleanup
     //--------------------------------------------------------------------------
     CHECK_CUDA_ERROR(cudaFree(d_whites));
     CHECK_CUDA_ERROR(cudaFree(d_blacks));
@@ -388,88 +389,119 @@ std::vector<move_t> HostSelectBestMoves(
     return bestMoves;
 }
 
-std::vector<u8> HostSimulateCheckersGames(
-    const std::vector<board_t>& h_whites, const std::vector<board_t>& h_blacks, const std::vector<board_t>& h_kings,
-    const std::vector<u8>& h_seeds, int max_iterations
-)
+std::vector<u8> HostSimulateCheckersGames(const std::vector<SimulationParam>& params, int max_iterations)
 {
-    // Ensure that all input vectors have the same size
-    assert(h_whites.size() == h_blacks.size() && h_blacks.size() == h_kings.size() && h_kings.size() == h_seeds.size());
-
-    const size_t n_boards = h_whites.size();
-    std::vector<u8> results(n_boards, 0);
-
-    if (n_boards == 0) {
-        return results;
+    using namespace checkers::gpu;
+    // Compute the total number of simulations
+    u64 n_simulation_counts = params.size();
+    u64 n_total_simulations = 0;
+    for (auto& p : params) {
+        n_total_simulations += p.n_simulations;
+    }
+    if (n_total_simulations == 0) {
+        return {};
     }
 
     //--------------------------------------------------------------------------
-    // 1) Initialize the Capture Lookup Table on the Device
+    // Prepare host arrays
     //--------------------------------------------------------------------------
-    checkers::gpu::apply_move::InitializeCaptureLookupTable();
+    std::vector<board_t> h_whites(n_simulation_counts);
+    std::vector<board_t> h_blacks(n_simulation_counts);
+    std::vector<board_t> h_kings(n_simulation_counts);
+    std::vector<u8> h_startTurns(n_simulation_counts);
+    std::vector<u64> h_simCounts(n_simulation_counts);
+
+    for (size_t i = 0; i < n_simulation_counts; i++) {
+        h_whites[i]     = params[i].white;
+        h_blacks[i]     = params[i].black;
+        h_kings[i]      = params[i].king;
+        h_startTurns[i] = params[i].startTurn;
+        h_simCounts[i]  = params[i].n_simulations;
+    }
+
+    // Generate random seeds for each simulation
+    std::vector<u8> h_seeds(n_total_simulations);
+    {
+        std::mt19937 rng((unsigned)time(nullptr));
+        for (u64 i = 0; i < n_total_simulations; i++) {
+            h_seeds[i] = static_cast<u8>(rng() & 0xFF);
+        }
+    }
 
     //--------------------------------------------------------------------------
-    // 2) Allocate Device Memory for Board States and Seeds
+    // Allocate device memory
     //--------------------------------------------------------------------------
     board_t* d_whites = nullptr;
     board_t* d_blacks = nullptr;
     board_t* d_kings  = nullptr;
+    u8* d_startTurns  = nullptr;
+    u64* d_simCounts  = nullptr;
     u8* d_scores      = nullptr;
     u8* d_seeds       = nullptr;
 
-    CHECK_CUDA_ERROR(cudaMalloc(&d_whites, n_boards * sizeof(board_t)));
-    CHECK_CUDA_ERROR(cudaMalloc(&d_blacks, n_boards * sizeof(board_t)));
-    CHECK_CUDA_ERROR(cudaMalloc(&d_kings, n_boards * sizeof(board_t)));
-    CHECK_CUDA_ERROR(cudaMalloc(&d_scores, n_boards * sizeof(u8)));
-    CHECK_CUDA_ERROR(cudaMalloc(&d_seeds, n_boards * sizeof(u8)));
+    CHECK_CUDA_ERROR(cudaMalloc(&d_whites, n_simulation_counts * sizeof(board_t)));
+    CHECK_CUDA_ERROR(cudaMalloc(&d_blacks, n_simulation_counts * sizeof(board_t)));
+    CHECK_CUDA_ERROR(cudaMalloc(&d_kings, n_simulation_counts * sizeof(board_t)));
+    CHECK_CUDA_ERROR(cudaMalloc(&d_startTurns, n_simulation_counts * sizeof(u8)));
+    CHECK_CUDA_ERROR(cudaMalloc(&d_simCounts, n_simulation_counts * sizeof(u64)));
+    CHECK_CUDA_ERROR(cudaMalloc(&d_scores, n_total_simulations * sizeof(u8)));
+    CHECK_CUDA_ERROR(cudaMalloc(&d_seeds, n_total_simulations * sizeof(u8)));
 
     //--------------------------------------------------------------------------
-    // 3) Copy Data from Host to Device
+    // Copy host data to device
     //--------------------------------------------------------------------------
-    CHECK_CUDA_ERROR(cudaMemcpy(d_whites, h_whites.data(), n_boards * sizeof(board_t), cudaMemcpyHostToDevice));
-    CHECK_CUDA_ERROR(cudaMemcpy(d_blacks, h_blacks.data(), n_boards * sizeof(board_t), cudaMemcpyHostToDevice));
-    CHECK_CUDA_ERROR(cudaMemcpy(d_kings, h_kings.data(), n_boards * sizeof(board_t), cudaMemcpyHostToDevice));
-    CHECK_CUDA_ERROR(cudaMemcpy(d_seeds, h_seeds.data(), n_boards * sizeof(u8), cudaMemcpyHostToDevice));
-
-    // Initialize scores on the device to zero (in-progress)
-    CHECK_CUDA_ERROR(cudaMemset(d_scores, 0, n_boards * sizeof(u8)));
-
-    //--------------------------------------------------------------------------
-    // 4) Determine Kernel Launch Configuration
-    //--------------------------------------------------------------------------
-    const u64 threadsPerBlock = BoardConstants::kBoardSize * checkers::gpu::kNumBoardsPerBlock;
-    const u64 blocks =
-        static_cast<int>((n_boards * BoardConstants::kBoardSize + threadsPerBlock - 1) / threadsPerBlock);
-
-    //--------------------------------------------------------------------------
-    // 5) Launch the Simulation Kernel
-    //--------------------------------------------------------------------------
-    SimulateCheckersGamesOneBoardPerBlock<<<blocks, threadsPerBlock>>>(
-        d_whites, d_blacks, d_kings, d_scores, d_seeds, max_iterations, static_cast<u64>(n_boards)
+    CHECK_CUDA_ERROR(
+        cudaMemcpy(d_whites, h_whites.data(), n_simulation_counts * sizeof(board_t), cudaMemcpyHostToDevice)
+    );
+    CHECK_CUDA_ERROR(
+        cudaMemcpy(d_blacks, h_blacks.data(), n_simulation_counts * sizeof(board_t), cudaMemcpyHostToDevice)
+    );
+    CHECK_CUDA_ERROR(cudaMemcpy(d_kings, h_kings.data(), n_simulation_counts * sizeof(board_t), cudaMemcpyHostToDevice)
+    );
+    CHECK_CUDA_ERROR(
+        cudaMemcpy(d_startTurns, h_startTurns.data(), n_simulation_counts * sizeof(u8), cudaMemcpyHostToDevice)
+    );
+    CHECK_CUDA_ERROR(
+        cudaMemcpy(d_simCounts, h_simCounts.data(), n_simulation_counts * sizeof(u64), cudaMemcpyHostToDevice)
     );
 
-    // Check for any kernel launch errors
+    // Scores set to 0 initially
+    CHECK_CUDA_ERROR(cudaMemset(d_scores, 0, n_total_simulations * sizeof(u8)));
+
+    // Seeds:
+    CHECK_CUDA_ERROR(cudaMemcpy(d_seeds, h_seeds.data(), n_total_simulations * sizeof(u8), cudaMemcpyHostToDevice));
+
+    //--------------------------------------------------------------------------
+    // Launch the kernel
+    //--------------------------------------------------------------------------
+    const int threadsPerBlock = kNumBoardsPerBlock * BoardConstants::kBoardSize;
+    const u64 totalThreads    = n_total_simulations * BoardConstants::kBoardSize;
+    const int blocks          = static_cast<int>((totalThreads + threadsPerBlock - 1) / threadsPerBlock);
+
+    SimulateCheckersGamesOneBoardPerBlock<<<blocks, threadsPerBlock>>>(
+        d_whites, d_blacks, d_kings, d_startTurns, d_simCounts, n_simulation_counts, d_scores, d_seeds, max_iterations,
+        n_total_simulations
+    );
     CHECK_LAST_CUDA_ERROR();
     CHECK_CUDA_ERROR(cudaDeviceSynchronize());
 
     //--------------------------------------------------------------------------
-    // 6) Copy Results Back from Device to Host
+    // Copy results back to host
     //--------------------------------------------------------------------------
-    CHECK_CUDA_ERROR(cudaMemcpy(results.data(), d_scores, n_boards * sizeof(u8), cudaMemcpyDeviceToHost));
+    std::vector<u8> results(n_total_simulations);
+    CHECK_CUDA_ERROR(cudaMemcpy(results.data(), d_scores, n_total_simulations * sizeof(u8), cudaMemcpyDeviceToHost));
 
     //--------------------------------------------------------------------------
-    // 7) Free Device Memory
+    // Cleanup
     //--------------------------------------------------------------------------
     CHECK_CUDA_ERROR(cudaFree(d_whites));
     CHECK_CUDA_ERROR(cudaFree(d_blacks));
     CHECK_CUDA_ERROR(cudaFree(d_kings));
+    CHECK_CUDA_ERROR(cudaFree(d_startTurns));
+    CHECK_CUDA_ERROR(cudaFree(d_simCounts));
     CHECK_CUDA_ERROR(cudaFree(d_scores));
     CHECK_CUDA_ERROR(cudaFree(d_seeds));
 
-    //--------------------------------------------------------------------------
-    // 8) Return the Simulation Outcomes
-    //--------------------------------------------------------------------------
     return results;
 }
-
 }  // namespace checkers::gpu::launchers

@@ -28,24 +28,18 @@ static constexpr u8 kOutcomeNone  = 0;
 // -----------------------------------------------------------------------------
 static constexpr int kNumBoardsPerBlock = 10;
 
-/**
- * @brief Kernel that simulates multiple checkers games, with 1 board per block
- *        and 32 threads per block. Each thread in a block handles 1 square. We
- *        do up to max_iterations half-moves, then store the final outcome in d_scores.
- *
- * @param d_whites      White bitmasks, one per board.
- * @param d_blacks      Black bitmasks, one per board.
- * @param d_kings       King bitmasks, one per board.
- * @param d_scores      Output array: 1=White,2=Black,3=Draw,0=In progress.
- * @param d_seeds       One random seed per board.
- * @param max_iterations If we reach that many half-moves, we declare a draw.
- * @param n_boards      Number of boards to simulate.
- */
 __global__ void SimulateCheckersGamesOneBoardPerBlock(
-    const board_t* d_whites, const board_t* d_blacks, const board_t* d_kings, u8* d_scores, const u8* d_seeds,
-    const int max_iterations, const u64 n_boards
+    const board_t* d_whites,         // [n_simulation_counts]
+    const board_t* d_blacks,         // [n_simulation_counts]
+    const board_t* turn_black,       // [n_simulation_counts]
+    const u8* d_start_turns,         // [n_simulation_counts] (0=White, 1=Black)
+    const u64* d_simulation_counts,  // [n_simulation_counts]
+    const u64 n_simulation_counts,   // how many distinct board/turn combos
+    u8* d_scores,                    // [n_total_simulations] final results
+    u8* d_seeds,                     // [n_total_simulations] random seeds
+    const int max_iterations,
+    const u64 n_total_simulations  // sum of all d_simCounts[i]);
 );
-
 }  // namespace checkers::gpu
 
 #endif  // MCTS_CHECKERS_INCLUDE_CUDA_GAME_SIMULATION_CUH_

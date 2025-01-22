@@ -1,5 +1,3 @@
-// main.cpp (continued)
-
 #include <gtest/gtest.h>
 #include <cmath>
 #include "cuda/game_simulation.cuh"
@@ -62,8 +60,7 @@ TEST_F(GpuBoardTest, BoardsSamePiecesDifferentKingsAreNotEqual)
 class SimulationTest : public ::testing::Test
 {
     protected:
-    std::vector<GpuBoard> boards;
-    std::vector<u8> seeds;
+    std::vector<SimulationParam> params;
 
     void SetUp() override
     {
@@ -75,10 +72,15 @@ class SimulationTest : public ::testing::Test
         // Black has a single piece at position 13, which can be captured
         board.setPieceAt(13, 'B');
 
-        boards.push_back(board);
+        // Add a SimulationParam for this board
+        SimulationParam param;
+        param.white         = board.white;
+        param.black         = board.black;
+        param.king          = board.kings;
+        param.startTurn     = 0;  // White to move
+        param.n_simulations = 100;
 
-        // Initialize seed
-        seeds.push_back(42);  // Arbitrary seed
+        params.push_back(param);
     }
 };
 
@@ -86,28 +88,20 @@ class SimulationTest : public ::testing::Test
 TEST_F(SimulationTest, ImmediateWinWhite)
 {
     const int max_iterations = 10;
-    std::vector<board_t> whites, blacks, kings;
-    std::vector<u8> currentSeeds;
 
-    for (const auto& board : boards) {
-        whites.push_back(board.white);
-        blacks.push_back(board.black);
-        kings.push_back(board.kings);
+    auto outcomes = checkers::gpu::launchers::HostSimulateCheckersGames(params, max_iterations);
+
+    // We expect all simulations to result in a White win
+    ASSERT_EQ(outcomes.size(), params[0].n_simulations);
+    for (u8 outcome : outcomes) {
+        EXPECT_EQ(outcome, checkers::gpu::kOutcomeWhite);
     }
-    currentSeeds = seeds;
-
-    auto outcomes =
-        checkers::gpu::launchers::HostSimulateCheckersGames(whites, blacks, kings, currentSeeds, max_iterations);
-
-    ASSERT_EQ(outcomes.size(), 1);
-    EXPECT_EQ(outcomes[0], checkers::gpu::kOutcomeWhite);
 }
 
 class ImmediateLossTest : public ::testing::Test
 {
     protected:
-    std::vector<GpuBoard> boards;
-    std::vector<u8> seeds;
+    std::vector<SimulationParam> params;
 
     void SetUp() override
     {
@@ -117,10 +111,15 @@ class ImmediateLossTest : public ::testing::Test
         board.setPieceAt(0, 'W');
         // Black has no pieces
 
-        boards.push_back(board);
+        // Add a SimulationParam for this board
+        SimulationParam param;
+        param.white         = board.white;
+        param.black         = board.black;
+        param.king          = board.kings;
+        param.startTurn     = 1;  // Black to move (will immediately lose)
+        param.n_simulations = 100;
 
-        // Initialize seed
-        seeds.push_back(24);  // Arbitrary seed
+        params.push_back(param);
     }
 };
 
@@ -128,27 +127,19 @@ class ImmediateLossTest : public ::testing::Test
 TEST_F(ImmediateLossTest, ImmediateLossBlack)
 {
     const int max_iterations = 10;
-    std::vector<board_t> whites, blacks, kings;
-    std::vector<u8> currentSeeds;
 
-    for (const auto& board : boards) {
-        whites.push_back(board.white);
-        blacks.push_back(board.black);
-        kings.push_back(board.kings);
+    auto outcomes = checkers::gpu::launchers::HostSimulateCheckersGames(params, max_iterations);
+
+    // We expect all simulations to result in a White win
+    ASSERT_EQ(outcomes.size(), params[0].n_simulations);
+    for (u8 outcome : outcomes) {
+        EXPECT_EQ(outcome, checkers::gpu::kOutcomeWhite);
     }
-    currentSeeds = seeds;
-
-    auto outcomes =
-        checkers::gpu::launchers::HostSimulateCheckersGames(whites, blacks, kings, currentSeeds, max_iterations);
-
-    ASSERT_EQ(outcomes.size(), 1);
-    EXPECT_EQ(outcomes[0], checkers::gpu::kOutcomeWhite);
 }
 class DrawTest : public ::testing::Test
 {
     protected:
-    std::vector<GpuBoard> boards;
-    std::vector<u8> seeds;
+    std::vector<SimulationParam> params;
 
     void SetUp() override
     {
@@ -169,10 +160,15 @@ class DrawTest : public ::testing::Test
         board.setPieceAt(5, 'B');
         board.setPieceAt(5, 'K');
 
-        boards.push_back(board);
+        // Add a SimulationParam for this board
+        SimulationParam param;
+        param.white         = board.white;
+        param.black         = board.black;
+        param.king          = board.kings;
+        param.startTurn     = 0;  // White to move
+        param.n_simulations = 100;
 
-        // Initialize seed
-        seeds.push_back(7);  // Arbitrary seed
+        params.push_back(param);
     }
 };
 
@@ -180,34 +176,26 @@ class DrawTest : public ::testing::Test
 TEST_F(DrawTest, DrawOutcome)
 {
     const u8 max_iterations = 5;  // Low number to force a draw
-    std::vector<board_t> whites, blacks, kings;
-    std::vector<u8> currentSeeds;
 
-    for (const auto& board : boards) {
-        whites.push_back(board.white);
-        blacks.push_back(board.black);
-        kings.push_back(board.kings);
+    auto outcomes = checkers::gpu::launchers::HostSimulateCheckersGames(params, max_iterations);
+
+    // We expect all simulations to result in a draw
+    ASSERT_EQ(outcomes.size(), params[0].n_simulations);
+    for (u8 outcome : outcomes) {
+        EXPECT_EQ(outcome, checkers::gpu::kOutcomeDraw);
     }
-    currentSeeds = seeds;
-
-    auto outcomes =
-        checkers::gpu::launchers::HostSimulateCheckersGames(whites, blacks, kings, currentSeeds, max_iterations);
-
-    ASSERT_EQ(outcomes.size(), 1);
-    EXPECT_EQ(outcomes[0], checkers::gpu::kOutcomeDraw);
 }
 class WinRatioTest : public ::testing::Test
 {
     protected:
-    std::vector<GpuBoard> boards;
-    std::vector<u8> seeds;
+    std::vector<SimulationParam> params;
 
     void SetUp() override
     {
         // Initialize multiple boards with the standard starting position
         // Standard Checkers initial setup: White pieces on the bottom three rows, Black pieces on the top three rows
         // Assuming positions 0-31 are arranged row-wise from top-left to bottom-right
-        for (size_t game = 0; game < 1000; ++game) {  // Reduced to 1000 for test speed
+        for (size_t game = 0; game < 100; ++game) {  // Reduced to 100 for test speed
             GpuBoard board;
             // Place White pieces on rows 3, 4, 5 (indices 24-31)
             for (board_index_t i = 24; i < 32; ++i) {
@@ -218,9 +206,16 @@ class WinRatioTest : public ::testing::Test
                 board.setPieceAt(i, 'B');
             }
             // No kings initially
-            boards.push_back(board);
-            // Initialize seeds
-            seeds.push_back(static_cast<u8>(rand()));
+
+            // Add a SimulationParam for this board
+            SimulationParam param;
+            param.white         = board.white;
+            param.black         = board.black;
+            param.king          = board.kings;
+            param.startTurn     = 0;   // White to move
+            param.n_simulations = 10;  // 10 simulations per board
+
+            params.push_back(param);
         }
     }
 };
@@ -229,48 +224,21 @@ class WinRatioTest : public ::testing::Test
 TEST_F(WinRatioTest, WinRatioWithinExpectedBounds)
 {
     const u8 max_iterations = 150;
-    std::vector<board_t> whites, blacks, kings;
-    std::vector<u8> currentSeeds;
 
-    for (const auto& board : boards) {
-        whites.push_back(board.white);
-        blacks.push_back(board.black);
-        kings.push_back(board.kings);
-    }
-    currentSeeds = seeds;
+    auto outcomes = checkers::gpu::launchers::HostSimulateCheckersGames(params, max_iterations);
 
-    auto outcomes =
-        checkers::gpu::launchers::HostSimulateCheckersGames(whites, blacks, kings, currentSeeds, max_iterations);
-
-    ASSERT_EQ(outcomes.size(), boards.size());
+    ASSERT_EQ(outcomes.size(), 1000);  // 100 boards * 10 simulations each
 
     // Count outcomes
-    u64 whiteWins = 0;
-    u64 blackWins = 0;
-    u64 draws     = 0;
+    u64 score = 0;
     for (auto outcome : outcomes) {
-        if (outcome == checkers::gpu::kOutcomeWhite) {
-            whiteWins++;
-        } else if (outcome == checkers::gpu::kOutcomeBlack) {
-            blackWins++;
-        } else if (outcome == checkers::gpu::kOutcomeDraw) {
-            draws++;
-        }
+        score += outcome;
     }
 
-    f64 total         = static_cast<double>(outcomes.size());
-    f64 whiteWinRatio = static_cast<double>(whiteWins) / total;
-    f64 blackWinRatio = static_cast<double>(blackWins) / total;
-    f64 drawRatio     = static_cast<double>(draws) / total;
+    const f64 win_ratio = (f64)score / outcomes.size() / 2;
+    std::cout << "Win ratio: " << win_ratio << std::endl;
 
-    std::cout << "White Wins: " << whiteWinRatio * 100 << "%" << std::endl;
-    std::cout << "Black Wins: " << blackWinRatio * 100 << "%" << std::endl;
-    std::cout << "Draws: " << drawRatio * 100 << "%" << std::endl;
-
-    // Define acceptable bounds (e.g., within 5% of expected ratios)
-    EXPECT_NEAR(whiteWinRatio, 0.45, 0.1);
-    EXPECT_NEAR(blackWinRatio, 0.45, 0.1);
-    EXPECT_NEAR(drawRatio, 0.10, 0.1);
+    EXPECT_NEAR(win_ratio, 0.47f, 0.05f);  // Around 45% win ratio, accounting for draws
 }
 
 }  // namespace checkers::gpu::launchers

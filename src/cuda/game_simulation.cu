@@ -8,41 +8,64 @@
 namespace checkers::gpu
 {
 
-__device__ void PrintCheckpoint(const u16 local_thread_in_board, const u64 checkpoint)
-{
-    //        if(local_thread_in_board == 0) {
-    //            printf("[%d] Checkpoint %lu\n", blockIdx.x, checkpoint);
-    //        }
-}
-
 // This kernel simulates multiple checkers games. Each block processes kNumBoardsPerBlock boards.
 // We store data in shared memory so each block can handle multiple boards in parallel.
 // We rely on the "OnSingleBoard" device functions for generating moves, selecting a move, and applying it.
 __global__ void SimulateCheckersGamesOneBoardPerBlock(
-    const board_t* d_whites, const board_t* d_blacks, const board_t* d_kings, u8* d_scores, const u8* d_seeds,
-    const int max_iterations, const u64 n_boards
+    const board_t* d_whites,         // [n_simulation_counts]
+    const board_t* d_blacks,         // [n_simulation_counts]
+    const board_t* d_kings,          // [n_simulation_counts]
+    const u8* d_start_turns,         // [n_simulation_counts] (0=White, 1=Black)
+    const u64* d_simulation_counts,  // [n_simulation_counts]
+    const u64 n_simulation_counts,   // how many distinct board/turn combos
+    u8* d_scores,                    // [n_total_simulations] final results
+    u8* d_seeds,                     // [n_total_simulations] random seeds
+    const int max_iterations,
+    const u64 n_total_simulations  // sum of all d_simCounts[i])
 )
 {
-    // Each board uses 32 threads. So total threads in this block is (kNumBoardsPerBlock * 32).
-    // Identify the localBoardIdx (which board within the block) and localThreadInBoard (0..31).
-    //    const int globalThreadIdx      = blockDim.x * blockIdx.x + threadIdx.x;
-    const int threadsPerBoard      = BoardConstants::kBoardSize;
-    const int totalBoardsThisBlock = kNumBoardsPerBlock;
+    using namespace checkers::gpu;
 
-    // The localBoardIdx is which board within the block [0..kNumBoardsPerBlock-1].
-    u16 localBoardIdx      = threadIdx.x / threadsPerBoard;
-    u16 localThreadInBoard = threadIdx.x % threadsPerBoard;
-
-    // The global board index is blockIdx.x * kNumBoardsPerBlock + localBoardIdx.
-    // Some threads might exceed the range if kNumBoardsPerBlock * 32 > blockDim.x, so we handle that gracefully.
-    u64 globalBoardIndex = blockIdx.x * kNumBoardsPerBlock + localBoardIdx;
-
-    // If this thread is beyond the intended local boards, or if the global board index is >= n_boards,
-    // there's no valid board to process. We'll skip the entire logic for that thread.
-    if (localBoardIdx >= totalBoardsThisBlock || globalBoardIndex >= static_cast<int>(n_boards)) {
+    // -------------------------------------------------------------------------
+    // Identify which global simulation thread this is
+    // -------------------------------------------------------------------------
+    const u64 kGlobalSimulationIndex = blockIdx.x * blockDim.x + threadIdx.x;
+    if (kGlobalSimulationIndex >= n_total_simulations * BoardConstants::kBoardSize) {
         return;
     }
-    PrintCheckpoint(localThreadInBoard, 1);
+
+    // -------------------------------------------------------------------------
+    // Figure out which "SimulationTypeIndex" (which board config) we belong to
+    // -------------------------------------------------------------------------
+    u64 kSimulationTypeIndex = 0;
+    u64 sum                  = d_simulation_counts[0];
+    while ((kGlobalSimulationIndex / BoardConstants::kBoardSize) >= sum &&
+           kSimulationTypeIndex < n_simulation_counts - 1) {
+        kSimulationTypeIndex++;
+        sum += d_simulation_counts[kSimulationTypeIndex];
+    }
+
+    if (kSimulationTypeIndex >= n_simulation_counts) {
+        return;  // Should not happen if the input data is correct
+    }
+
+    // -------------------------------------------------------------------------
+    // Each "board" is handled by kNumBoardsPerBlock sub-block of threads.
+    // Exactly as before, we group 32 threads (one per square).
+    // -------------------------------------------------------------------------
+    const int kThreadsPerBoard = BoardConstants::kBoardSize;  // 32
+
+    // localBoardIdx: which board within the block
+    const u16 kLocalBoardIndex         = threadIdx.x / kThreadsPerBoard;
+    const u16 kLocalThreadInBoardIndex = threadIdx.x % kThreadsPerBoard;
+
+    // If this block is somehow dealing with more boards that it should, we skip threads that exceed that range.
+    // This shouldn't be possible with a properly configured grid.
+    if (kLocalBoardIndex >= kNumBoardsPerBlock) {
+        return;
+    }
+
+    const u64 kGlobalBoardIndex = kGlobalSimulationIndex / BoardConstants::kBoardSize;
 
     // ----------------------------------------------------------------------------
     // Prepare shared memory to hold board states and relevant arrays
@@ -53,10 +76,8 @@ __global__ void SimulateCheckersGamesOneBoardPerBlock(
     __shared__ board_t s_kings[kNumBoardsPerBlock];
     __shared__ u8 s_outcome[kNumBoardsPerBlock];
     __shared__ u8 s_seed[kNumBoardsPerBlock];
-    // We treat turn as 0=white, 1=black (or use an enum). Here we’ll store bool
-    __shared__ bool s_currentTurn[kNumBoardsPerBlock];
-    __shared__ u8 s_nonReversible[kNumBoardsPerBlock];
-    PrintCheckpoint(localThreadInBoard, 2);
+    __shared__ bool s_current_turn[kNumBoardsPerBlock];
+    __shared__ u8 s_non_reversible[kNumBoardsPerBlock];
 
     // For move generation:
     // s_moves: up to 32 squares * kNumMaxMovesPerPiece
@@ -65,322 +86,298 @@ __global__ void SimulateCheckersGamesOneBoardPerBlock(
     // s_perBoardFlags: 1 per board
     static constexpr int kNumMaxMovesPerPiece = checkers::gpu::move_gen::kNumMaxMovesPerPiece;
     __shared__ move_t s_moves[kNumBoardsPerBlock][BoardConstants::kBoardSize * kNumMaxMovesPerPiece];
-    __shared__ u8 s_moveCounts[kNumBoardsPerBlock][BoardConstants::kBoardSize];
-    __shared__ move_flags_t s_captureMasks[kNumBoardsPerBlock][BoardConstants::kBoardSize];
-    __shared__ move_flags_t s_perBoardFlags[kNumBoardsPerBlock];
-    __shared__ bool s_hasCapture[kNumBoardsPerBlock];
-    PrintCheckpoint(localThreadInBoard, 3);
+    __shared__ u8 s_move_counts[kNumBoardsPerBlock][BoardConstants::kBoardSize];
+    __shared__ move_flags_t s_capture_masks[kNumBoardsPerBlock][BoardConstants::kBoardSize];
+    __shared__ move_flags_t s_per_board_flags[kNumBoardsPerBlock];
+    __shared__ bool s_has_capture[kNumBoardsPerBlock];
+    __shared__ move_t s_chosen_move[kNumBoardsPerBlock];
+    __shared__ board_index_t s_chain_from[kNumBoardsPerBlock];
 
     // ----------------------------------------------------------------------------
     // Initialize shared memory from global memory, but only for the board that
-    // localBoardIdx refers to. We do that with a single warp (or single thread) approach.
+    // localBoardIdx refers to.
     // ----------------------------------------------------------------------------
-    if (localThreadInBoard == 0) {
-        s_whites[localBoardIdx]        = d_whites[globalBoardIndex];
-        s_blacks[localBoardIdx]        = d_blacks[globalBoardIndex];
-        s_kings[localBoardIdx]         = d_kings[globalBoardIndex];
-        s_outcome[localBoardIdx]       = 0;  // 0 = in progress
-        s_seed[localBoardIdx]          = d_seeds[globalBoardIndex];
-        s_currentTurn[localBoardIdx]   = 0;  // 0 means White’s turn
-        s_nonReversible[localBoardIdx] = 0;
+    if (kLocalThreadInBoardIndex == 0) {
+        s_whites[kLocalBoardIndex]         = d_whites[kSimulationTypeIndex];
+        s_blacks[kLocalBoardIndex]         = d_blacks[kSimulationTypeIndex];
+        s_kings[kLocalBoardIndex]          = d_kings[kSimulationTypeIndex];
+        s_outcome[kLocalBoardIndex]        = 0;  // 0 = in progress
+        s_seed[kLocalBoardIndex]           = d_seeds[kGlobalBoardIndex];
+        s_non_reversible[kLocalBoardIndex] = 0;
+        s_current_turn[kLocalBoardIndex]   = (d_start_turns[kSimulationTypeIndex]);
     }
     __syncthreads();
-    PrintCheckpoint(localThreadInBoard, 4);
 
     // ----------------------------------------------------------------------------
-    // We'll define a helper function that returns whether a piece belongs to the current side:
+    // Define a helper function that returns whether a piece belongs to the current side:
     // currentTurn = 0 => White, 1 => Black.
     // ----------------------------------------------------------------------------
-    auto IsCurrentSidePiece = [&](board_t whiteBits, board_t blackBits, int turn, int idx) {
-        if (turn == 0) {  // white
-            return ((whiteBits >> idx) & 1ULL) != 0ULL;
+    auto IsCurrentSidePiece = [&](board_t w, board_t b, bool turn_black, board_index_t idx) {
+        // turnBlack == false => white's turn, true => black's turn
+        if (!turn_black) {
+            // white turn
+            return ((w >> idx) & 1ULL) != 0ULL;
         } else {
-            return ((blackBits >> idx) & 1ULL) != 0ULL;
+            // black turn
+            return ((b >> idx) & 1ULL) != 0ULL;
         }
     };
-    PrintCheckpoint(localThreadInBoard, 5);
 
     // ----------------------------------------------------------------------------
     // The main half-move simulation loop.
     // ----------------------------------------------------------------------------
-    for (int moveCount = 0; moveCount < max_iterations; moveCount++) {
-        // 1) Check if the board is already ended (someone has no pieces).
-        // Each thread sees shared memory, but we do final check with threadInBoard == 0.
-        if (localThreadInBoard == 0) {
-            board_t w = s_whites[localBoardIdx];
-            board_t b = s_blacks[localBoardIdx];
+    for (u32 moveCount = 0; moveCount < max_iterations; moveCount++) {
+        if (kLocalThreadInBoardIndex == 0) {
+            board_t w = s_whites[kLocalBoardIndex];
+            board_t b = s_blacks[kLocalBoardIndex];
             if (b == 0ULL) {
-                s_outcome[localBoardIdx] = 1;  // White wins
+                s_outcome[kLocalBoardIndex] = 1;  // White wins
             } else if (w == 0ULL) {
-                s_outcome[localBoardIdx] = 2;  // Black wins
+                s_outcome[kLocalBoardIndex] = 2;  // Black wins
             }
         }
-        PrintCheckpoint(localThreadInBoard, 6);
         __syncthreads();
 
-        // If outcome != 0, we break out of the loop for that board
-        if (s_outcome[localBoardIdx] != 0) {
-            break;
+        if (s_outcome[kLocalBoardIndex] != 0) {
+            break;  // Board ended
         }
 
-        // 2) Zero the arrays used for move generation
-        // We'll do that for each square [0..31], so each thread with localThreadInBoard in [0..31] can do it
-        // or we can do a condition like "if (localThreadInBoard < 32) { ... }".
+        // Zero the arrays used for move generation
         {
-            int sq                            = localThreadInBoard;
-            s_moveCounts[localBoardIdx][sq]   = 0;
-            s_captureMasks[localBoardIdx][sq] = 0;
+            board_index_t sq                      = kLocalThreadInBoardIndex;
+            s_move_counts[kLocalBoardIndex][sq]   = 0;
+            s_capture_masks[kLocalBoardIndex][sq] = 0;
         }
-        if (localThreadInBoard == 0) {
-            s_perBoardFlags[localBoardIdx] = 0;
+
+        if (kLocalThreadInBoardIndex == 0) {
+            s_per_board_flags[kLocalBoardIndex] = 0;
         }
-        PrintCheckpoint(localThreadInBoard, 7);
         __syncthreads();
 
-        // 3) Generate moves for the piece corresponding to localThreadInBoard,
-        // if that square belongs to the current side. We call your tested single-board function(s).
+        // Generate moves for the piece corresponding to localThreadInBoard,
         {
-            board_t w = s_whites[localBoardIdx];
-            board_t b = s_blacks[localBoardIdx];
-            board_t k = s_kings[localBoardIdx];
-            int t     = s_currentTurn[localBoardIdx];
+            const board_t w      = s_whites[kLocalBoardIndex];
+            const board_t b      = s_blacks[kLocalBoardIndex];
+            const board_t k      = s_kings[kLocalBoardIndex];
+            const bool turnBlack = s_current_turn[kLocalBoardIndex];
 
-            bool isMine = IsCurrentSidePiece(w, b, t, localThreadInBoard);
-            if (isMine) {
-                // We generate moves for this one piece index: localThreadInBoard
-                // We'll store them in s_moves for that board.
-                // We have a function in move_generation that can generate moves for a single piece (OnSingleBoard).
-                // For example, if (t==0) => Turn::kWhite, else Turn::kBlack, etc.
-
+            if (IsCurrentSidePiece(w, b, turnBlack, kLocalThreadInBoardIndex)) {
                 using checkers::gpu::move_gen::GenerateMovesForSinglePiece;
-                // We'll do some turn-based templating. Let's create a tiny helper:
-                if (t == 0) {
+                if (!turnBlack) {
                     // White
                     GenerateMovesForSinglePiece<Turn::kWhite>(
-                        static_cast<board_index_t>(localThreadInBoard), w, b, k,
-                        &s_moves[localBoardIdx][localThreadInBoard * kNumMaxMovesPerPiece],
-                        s_moveCounts[localBoardIdx][localThreadInBoard],
-                        s_captureMasks[localBoardIdx][localThreadInBoard], s_perBoardFlags[localBoardIdx]
+                        (board_index_t)kLocalThreadInBoardIndex, w, b, k,
+                        &s_moves[kLocalBoardIndex][kLocalThreadInBoardIndex * kNumMaxMovesPerPiece],
+                        s_move_counts[kLocalBoardIndex][kLocalThreadInBoardIndex],
+                        s_capture_masks[kLocalBoardIndex][kLocalThreadInBoardIndex], s_per_board_flags[kLocalBoardIndex]
                     );
                 } else {
                     // Black
                     GenerateMovesForSinglePiece<Turn::kBlack>(
-                        static_cast<board_index_t>(localThreadInBoard), w, b, k,
-                        &s_moves[localBoardIdx][localThreadInBoard * kNumMaxMovesPerPiece],
-                        s_moveCounts[localBoardIdx][localThreadInBoard],
-                        s_captureMasks[localBoardIdx][localThreadInBoard], s_perBoardFlags[localBoardIdx]
+                        (board_index_t)kLocalThreadInBoardIndex, w, b, k,
+                        &s_moves[kLocalBoardIndex][kLocalThreadInBoardIndex * kNumMaxMovesPerPiece],
+                        s_move_counts[kLocalBoardIndex][kLocalThreadInBoardIndex],
+                        s_capture_masks[kLocalBoardIndex][kLocalThreadInBoardIndex], s_per_board_flags[kLocalBoardIndex]
                     );
                 }
             }
-            PrintCheckpoint(localThreadInBoard, 8);
         }
         __syncthreads();
 
-        // 4) A single thread (localThreadInBoard == 0) selects the move from the array s_moves
-        //    for this board.
-        __shared__ move_t s_chosenMove[kNumBoardsPerBlock];
-        if (localThreadInBoard == 0) {
-            // We'll pick either a random or best move. We'll use your tested function from move_selection.
-            // The function needs to see the flattened arrays: s_moves[boardIdx], s_moveCounts[boardIdx], etc.
-            // We'll gather them into pointers referencing the correct location in shared memory.
-            move_t* boardMoves          = &s_moves[localBoardIdx][0];
-            u8* boardMoveCounts         = s_moveCounts[localBoardIdx];
-            move_flags_t* boardCaptures = s_captureMasks[localBoardIdx];
-            move_flags_t boardFlags     = s_perBoardFlags[localBoardIdx];
-            u8 localSeed                = s_seed[localBoardIdx];
+        // Single thread picks the move
+        if (kLocalThreadInBoardIndex == 0) {
+            // Flattened arrays for the board
+            move_t* boardMoves          = &s_moves[kLocalBoardIndex][0];
+            u8* boardMoveCounts         = s_move_counts[kLocalBoardIndex];
+            move_flags_t* boardCaptures = s_capture_masks[kLocalBoardIndex];
+            move_flags_t flags          = s_per_board_flags[kLocalBoardIndex];
 
+            // The side-to-move bitmasks
+            board_t w = s_whites[kLocalBoardIndex];
+            board_t b = s_blacks[kLocalBoardIndex];
+            board_t k = s_kings[kLocalThreadInBoardIndex];
+
+            u8& localSeed = s_seed[kLocalBoardIndex];
+
+            // pick best move
             using checkers::gpu::move_selection::SelectBestMoveForSingleBoard;
-            board_t w = s_whites[localBoardIdx];
-            board_t b = s_blacks[localBoardIdx];
-            board_t k = s_kings[localBoardIdx];
+            move_t chosen =
+                SelectBestMoveForSingleBoard(w, b, k, boardMoves, boardMoveCounts, boardCaptures, flags, localSeed);
 
-            move_t chosen = SelectBestMoveForSingleBoard(
-                w, b, k, boardMoves, boardMoveCounts, boardCaptures, boardFlags, localSeed
-            );
-            PrintCheckpoint(localThreadInBoard, 9);
-
-            // Save the updated seed back
-            s_seed[localBoardIdx] = static_cast<u8>(localSeed + 13);
-
-            // If no move => the current side loses
-            if (chosen == move_gen::MoveConstants::kInvalidMove) {
-                s_outcome[localBoardIdx] = (s_currentTurn[localBoardIdx] == 0) ? 2 : 1;
+            s_seed[kLocalBoardIndex] = (u8)(localSeed + 13);
+            if (chosen == checkers::gpu::move_gen::MoveConstants::kInvalidMove) {
+                // Current side cannot move => other side wins
+                s_outcome[kLocalBoardIndex] = !s_current_turn[kLocalBoardIndex] ? 2 : 1;
             }
-            s_chosenMove[localBoardIdx] = chosen;
+            s_chosen_move[kLocalBoardIndex] = chosen;
         }
         __syncthreads();
 
-        // If outcome changed, break
-        if (s_outcome[localBoardIdx] != 0) {
+        if (s_outcome[kLocalBoardIndex] != 0) {
             break;
         }
 
-        // 5) Apply the chosen move
-        if (localThreadInBoard == 0) {
-            move_t mv = s_chosenMove[localBoardIdx];
+        // Apply the chosen move
+        if (kLocalThreadInBoardIndex == 0) {
+            move_t mv = s_chosen_move[kLocalBoardIndex];
             checkers::gpu::apply_move::ApplyMoveOnSingleBoard(
-                mv, s_whites[localBoardIdx], s_blacks[localBoardIdx], s_kings[localBoardIdx]
+                mv, s_whites[kLocalBoardIndex], s_blacks[kLocalBoardIndex], s_kings[kLocalBoardIndex]
             );
+            // Save the from-square for chaining
+            s_chain_from[kLocalBoardIndex] =
+                checkers::gpu::move_gen::DecodeMove<checkers::gpu::move_gen::MovePart::To>(mv);
         }
-        PrintCheckpoint(localThreadInBoard, 10);
         __syncthreads();
 
-        // 6) Chain capturing. We keep capturing if a capture was done and there's a possibility of continuing.
-        //    The "to" index of the chosen move might still be able to capture more.
-        //    We'll replicate the logic inside a while(true).
-        __shared__ board_index_t s_chainFrom[kNumBoardsPerBlock];
-        if (localThreadInBoard == 0) {
-            move_t mv                  = s_chosenMove[localBoardIdx];
-            s_chainFrom[localBoardIdx] = checkers::gpu::move_gen::DecodeMove<checkers::gpu::move_gen::MovePart::To>(mv);
-        }
-        PrintCheckpoint(localThreadInBoard, 11);
-        __syncthreads();
-
+        // Chain capturing. We keep capturing if a capture was done and there's a possibility of continuing.
+        // The "to" index of the chosen move might still be able to capture more.
         while (true) {
-            // Clear arrays again
+            // Clear arrays again for single-piece generation
             {
-                int sq                            = localThreadInBoard;
-                s_moveCounts[localBoardIdx][sq]   = 0;
-                s_captureMasks[localBoardIdx][sq] = 0;
-                s_hasCapture[localBoardIdx]       = false;
+                int sq                                = kLocalThreadInBoardIndex;
+                s_move_counts[kLocalBoardIndex][sq]   = 0;
+                s_capture_masks[kLocalBoardIndex][sq] = 0;
+                s_has_capture[kLocalBoardIndex]       = false;
             }
-            if (localThreadInBoard == 0) {
-                s_perBoardFlags[localBoardIdx] = 0;
+            if (kLocalThreadInBoardIndex == 0) {
+                s_per_board_flags[kLocalBoardIndex] = 0;
             }
             __syncthreads();
-            PrintCheckpoint(localThreadInBoard, 12);
 
-            // Generate only for the piece at chainFrom if it’s still the side’s piece
-            board_t w = s_whites[localBoardIdx];
-            board_t b = s_blacks[localBoardIdx];
-            board_t k = s_kings[localBoardIdx];
-            int t     = s_currentTurn[localBoardIdx];
+            // Only the piece at s_chainFrom can keep capturing
+            board_t w      = s_whites[kLocalBoardIndex];
+            board_t b      = s_blacks[kLocalBoardIndex];
+            board_t k      = s_kings[kLocalBoardIndex];
+            bool turnBlack = s_current_turn[kLocalBoardIndex];
 
-            if ((localThreadInBoard == s_chainFrom[localBoardIdx]) && IsCurrentSidePiece(w, b, t, localThreadInBoard)) {
-                if (t == 0) {
-                    // White
+            if ((kLocalThreadInBoardIndex == s_chain_from[kLocalBoardIndex]) &&
+                IsCurrentSidePiece(w, b, turnBlack, kLocalThreadInBoardIndex)) {
+                if (!turnBlack) {
                     checkers::gpu::move_gen::GenerateMovesForSinglePiece<Turn::kWhite>(
-                        static_cast<board_index_t>(localThreadInBoard), w, b, k,
-                        &s_moves[localBoardIdx][localThreadInBoard * kNumMaxMovesPerPiece],
-                        s_moveCounts[localBoardIdx][localThreadInBoard],
-                        s_captureMasks[localBoardIdx][localThreadInBoard], s_perBoardFlags[localBoardIdx]
+                        (board_index_t)kLocalThreadInBoardIndex, w, b, k,
+                        &s_moves[kLocalBoardIndex][kLocalThreadInBoardIndex * kNumMaxMovesPerPiece],
+                        s_move_counts[kLocalBoardIndex][kLocalThreadInBoardIndex],
+                        s_capture_masks[kLocalBoardIndex][kLocalThreadInBoardIndex], s_per_board_flags[kLocalBoardIndex]
                     );
                 } else {
-                    // Black
                     checkers::gpu::move_gen::GenerateMovesForSinglePiece<Turn::kBlack>(
-                        static_cast<board_index_t>(localThreadInBoard), w, b, k,
-                        &s_moves[localBoardIdx][localThreadInBoard * kNumMaxMovesPerPiece],
-                        s_moveCounts[localBoardIdx][localThreadInBoard],
-                        s_captureMasks[localBoardIdx][localThreadInBoard], s_perBoardFlags[localBoardIdx]
+                        (board_index_t)kLocalThreadInBoardIndex, w, b, k,
+                        &s_moves[kLocalBoardIndex][kLocalThreadInBoardIndex * kNumMaxMovesPerPiece],
+                        s_move_counts[kLocalBoardIndex][kLocalThreadInBoardIndex],
+                        s_capture_masks[kLocalBoardIndex][kLocalThreadInBoardIndex], s_per_board_flags[kLocalBoardIndex]
                     );
                 }
             }
-            PrintCheckpoint(localThreadInBoard, 13);
             __syncthreads();
 
-            // See if captures exist. We'll check the capture flag in s_perBoardFlags
-            if (ReadFlag(s_perBoardFlags[localBoardIdx], move_gen::MoveFlagsConstants::kCaptureFound)) {
-                s_hasCapture[localBoardIdx] = true;
+            // If captures exist, set the flag
+            if (checkers::gpu::ReadFlag(
+                    s_per_board_flags[kLocalBoardIndex], checkers::gpu::move_gen::MoveFlagsConstants::kCaptureFound
+                )) {
+                s_has_capture[kLocalBoardIndex] = true;
             }
             __syncthreads();
 
-            if (!s_hasCapture[localBoardIdx]) {
-                // no more chain capturing
+            if (!s_has_capture[kLocalBoardIndex]) {
                 break;
             }
-            PrintCheckpoint(localThreadInBoard, 14);
 
-            // We do the chain move selection with a single thread
-            if (localThreadInBoard == 0) {
-                // pick chain capture from s_moves
-                move_t* boardMoves          = &s_moves[localBoardIdx][0];
-                u8* boardMoveCounts         = s_moveCounts[localBoardIdx];
-                move_flags_t* boardCaptures = s_captureMasks[localBoardIdx];
-                move_flags_t boardFlags     = s_perBoardFlags[localBoardIdx];
-                u8 localSeed                = s_seed[localBoardIdx];
+            // pick chain capture
+            if (kLocalThreadInBoardIndex == 0) {
+                move_t* board_moves          = &s_moves[kLocalBoardIndex][0];
+                u8* board_move_counts        = s_move_counts[kLocalBoardIndex];
+                move_flags_t* board_captures = s_capture_masks[kLocalBoardIndex];
+                move_flags_t flags           = s_per_board_flags[kLocalBoardIndex];
+                u8& local_seed               = s_seed[kLocalBoardIndex];
 
                 move_t chainMv = checkers::gpu::move_selection::SelectBestMoveForSingleBoard(
-                    w, b, k, boardMoves, boardMoveCounts, boardCaptures, boardFlags, localSeed
+                    w, b, k, board_moves, board_move_counts, board_captures, flags, local_seed
                 );
-                s_seed[localBoardIdx] = static_cast<u8>(localSeed + 7);  // update seed
+                s_seed[kLocalBoardIndex] = (u8)(local_seed + 7);
 
-                if (chainMv == move_gen::MoveConstants::kInvalidMove) {
-                    // can't continue capturing
-                    s_chosenMove[localBoardIdx] = chainMv;
+                if (chainMv == checkers::gpu::move_gen::MoveConstants::kInvalidMove) {
+                    s_chosen_move[kLocalBoardIndex] = chainMv;
                 } else {
-                    // apply move
                     checkers::gpu::apply_move::ApplyMoveOnSingleBoard(
-                        chainMv, s_whites[localBoardIdx], s_blacks[localBoardIdx], s_kings[localBoardIdx]
+                        chainMv, s_whites[kLocalBoardIndex], s_blacks[kLocalBoardIndex], s_kings[kLocalBoardIndex]
                     );
-                    s_chainFrom[localBoardIdx] =
+                    s_chain_from[kLocalBoardIndex] =
                         checkers::gpu::move_gen::DecodeMove<checkers::gpu::move_gen::MovePart::To>(chainMv);
                 }
             }
-            PrintCheckpoint(localThreadInBoard, 15);
             __syncthreads();
 
-            // If chosen move is invalid => break
-            if (s_chosenMove[localBoardIdx] == move_gen::MoveConstants::kInvalidMove) {
+            if (s_chosen_move[kLocalBoardIndex] == checkers::gpu::move_gen::MoveConstants::kInvalidMove) {
                 break;
             }
-        }  // end while (chain capturing)
-
-        // 7) Check promotion
-        if (localThreadInBoard == 0) {
-            s_kings[localBoardIdx] |= (s_whites[localBoardIdx] & BoardConstants::kTopBoardEdgeMask);
-            s_kings[localBoardIdx] |= (s_blacks[localBoardIdx] & BoardConstants::kBottomBoardEdgeMask);
         }
-        PrintCheckpoint(localThreadInBoard, 16);
+
+        // Promotion
+        if (kLocalThreadInBoardIndex == 0) {
+            s_kings[kLocalBoardIndex] |= (s_whites[kLocalBoardIndex] & BoardConstants::kTopBoardEdgeMask);
+            s_kings[kLocalBoardIndex] |= (s_blacks[kLocalBoardIndex] & BoardConstants::kBottomBoardEdgeMask);
+        }
         __syncthreads();
 
-        // 8) 40-move rule or “non-reversible” logic. We'll do it if your game wants that.
-        if (localThreadInBoard == 0) {
-            bool wasCapture =
-                ((s_perBoardFlags[localBoardIdx] >> move_gen::MoveFlagsConstants::kCaptureFound) & 1U) != 0U;
+        // 6.h) 40-move rule or non-reversible logic
+        if (kLocalThreadInBoardIndex == 0) {
+            const bool was_capture = checkers::gpu::ReadFlag(
+                s_per_board_flags[kLocalBoardIndex], checkers::gpu::move_gen::MoveFlagsConstants::kCaptureFound
+            );
 
-            // from square of s_chosenMove:
-            board_index_t fromSq =
-                checkers::gpu::move_gen::DecodeMove<checkers::gpu::move_gen::MovePart::From>(s_chosenMove[localBoardIdx]
-                );
-            bool fromWasKing = ((s_kings[localBoardIdx] >> fromSq) & 1ULL) != 0ULL;
+            board_index_t from_sq = checkers::gpu::move_gen::DecodeMove<checkers::gpu::move_gen::MovePart::From>(
+                s_chosen_move[kLocalBoardIndex]
+            );
+            const bool from_was_king = ReadFlag(s_kings[kLocalBoardIndex], from_sq);
 
-            if (!wasCapture && fromWasKing) {
-                s_nonReversible[localBoardIdx]++;
+            if (!was_capture && from_was_king) {
+                s_non_reversible[kLocalBoardIndex]++;
             } else {
-                s_nonReversible[localBoardIdx] = 0;
+                s_non_reversible[kLocalBoardIndex] = 0;
             }
-            if (s_nonReversible[localBoardIdx] >= 40) {
-                s_outcome[localBoardIdx] = 3;  // draw
+            if (s_non_reversible[kLocalBoardIndex] >= 40) {
+                s_outcome[kLocalBoardIndex] = 3;  // draw
             }
         }
         __syncthreads();
-        if (s_outcome[localBoardIdx] != 0) {
+
+        if (s_outcome[kLocalBoardIndex] != 0) {
             break;
         }
-        PrintCheckpoint(localThreadInBoard, 17);
 
-        // 9) Switch turn
-        if (localThreadInBoard == 0) {
-            s_currentTurn[localBoardIdx] = 1 - s_currentTurn[localBoardIdx];
+        // Switch turn
+        if (kLocalThreadInBoardIndex == 0) {
+            s_current_turn[kLocalBoardIndex] = !s_current_turn[kLocalBoardIndex];
         }
         __syncthreads();
-        PrintCheckpoint(localThreadInBoard, 18);
-    }  // end of for(moveCount..)
-
-    // If no outcome, declare a draw
-    if (localThreadInBoard == 0 && s_outcome[localBoardIdx] == 0) {
-        s_outcome[localBoardIdx] = 3;  // 3 = draw
     }
-    PrintCheckpoint(localThreadInBoard, 19);
+
+    // If still 0, declare a draw
+    if (kLocalThreadInBoardIndex == 0 && s_outcome[kLocalBoardIndex] == 0) {
+        s_outcome[kLocalBoardIndex] = 3;  // draw
+    }
     __syncthreads();
 
-    // ----------------------------------------------------------------------------
-    // Write final results back to global memory
-    // ----------------------------------------------------------------------------
-    if (localThreadInBoard == 0) {
-        d_scores[globalBoardIndex] = s_outcome[localBoardIdx];
-    }
-    PrintCheckpoint(localThreadInBoard, 20);
-}
+    // -------------------------------------------------------------------------
+    // 7) Write final results from the perspective of the starting turn
+    //    2=win, 1=draw, 0=lose
+    // -------------------------------------------------------------------------
+    if (kLocalThreadInBoardIndex == 0) {
+        u8 final    = s_outcome[kLocalBoardIndex];          // 1=White,2=Black,3=Draw
+        u8 st       = d_start_turns[kSimulationTypeIndex];  // 0=White started, 1=Black started
+        u8 storeVal = 0;                                    // default: lose
 
+        // If draw
+        if (final == 3) {
+            storeVal = 1;
+        }
+        // If final is the same side as st => it's a "win" for the starter
+        else if (final == (st + 1)) {
+            storeVal = 2;
+        }
+        // else remains 0 (lose)
+
+        d_scores[kGlobalBoardIndex] = storeVal;
+    }
+}
 }  // namespace checkers::gpu
