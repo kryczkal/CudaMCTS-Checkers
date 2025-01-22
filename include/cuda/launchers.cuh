@@ -21,6 +21,13 @@ struct GpuBoard {
     board_t black = 0;
     board_t kings = 0;
 
+    bool operator==(const GpuBoard& other) const
+    {
+        return (white == other.white) && (black == other.black) && (kings == other.kings);
+    }
+
+    bool operator!=(const GpuBoard& other) const { return !(*this == other); }
+
     /**
      * @brief Helper to set a piece.
      *        'W' -> white, 'B' -> black, 'K' -> king flag.
@@ -49,7 +56,7 @@ struct GpuBoard {
  */
 struct MoveGenResult {
     // We track 32 squares, with up to kNumMaxMovesPerPiece = 13 possible moves per piece
-    static constexpr size_t kTotalSquares  = checkers::gpu::move_gen::BoardConstants::kBoardSize;
+    static constexpr size_t kTotalSquares  = BoardConstants::kBoardSize;
     static constexpr size_t kMovesPerPiece = checkers::gpu::move_gen::kNumMaxMovesPerPiece;
 
     // Flattened array of moves: size 32*kMovesPerPiece
@@ -62,7 +69,7 @@ struct MoveGenResult {
     std::vector<move_flags_t> h_per_board_flags;
 
     MoveGenResult()
-        : h_moves(kTotalSquares * kMovesPerPiece, MoveConstants::kInvalidMove),
+        : h_moves(kTotalSquares * kMovesPerPiece, move_gen::MoveConstants::kInvalidMove),
           h_move_counts(kTotalSquares, 0),
           h_capture_masks(kTotalSquares, 0),
           h_per_board_flags(1, 0)

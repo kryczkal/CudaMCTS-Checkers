@@ -283,7 +283,7 @@ std::vector<move_t> HostSelectBestMoves(
     using namespace checkers::gpu::move_selection;
 
     const size_t n_boards = boards.size();
-    std::vector<move_t> bestMoves(n_boards, MoveConstants::kInvalidMove);
+    std::vector<move_t> bestMoves(n_boards, move_gen::MoveConstants::kInvalidMove);
 
     if (n_boards == 0) {
         return bestMoves;
@@ -300,7 +300,7 @@ std::vector<move_t> HostSelectBestMoves(
     }
 
     // Basic size checks (could be expanded with error handling)
-    const size_t totalSquares       = move_gen::BoardConstants::kBoardSize;
+    const size_t totalSquares       = BoardConstants::kBoardSize;
     const size_t movesPerPiece      = gpu::move_gen::kNumMaxMovesPerPiece;
     const size_t totalMovesPerBoard = totalSquares * movesPerPiece;
     if (moves.size() != n_boards * totalMovesPerBoard) {
@@ -350,7 +350,7 @@ std::vector<move_t> HostSelectBestMoves(
     CHECK_CUDA_ERROR(cudaMemcpy(d_seeds, seeds.data(), n_boards * sizeof(u8), cudaMemcpyHostToDevice));
 
     // Initialize d_best_moves to invalid
-    std::vector<move_t> initBest(n_boards, MoveConstants::kInvalidMove);
+    std::vector<move_t> initBest(n_boards, move_gen::MoveConstants::kInvalidMove);
     CHECK_CUDA_ERROR(cudaMemcpy(d_best_moves, initBest.data(), n_boards * sizeof(move_t), cudaMemcpyHostToDevice));
 
     //--------------------------------------------------------------------------
@@ -437,9 +437,9 @@ std::vector<u8> HostSimulateCheckersGames(
     //--------------------------------------------------------------------------
     // 4) Determine Kernel Launch Configuration
     //--------------------------------------------------------------------------
-    const u64 threadsPerBlock = move_gen::BoardConstants::kBoardSize * checkers::gpu::kNumBoardsPerBlock;
+    const u64 threadsPerBlock = BoardConstants::kBoardSize * checkers::gpu::kNumBoardsPerBlock;
     const u64 blocks =
-        static_cast<int>((n_boards * move_gen::BoardConstants::kBoardSize + threadsPerBlock - 1) / threadsPerBlock);
+        static_cast<int>((n_boards * BoardConstants::kBoardSize + threadsPerBlock - 1) / threadsPerBlock);
 
     //--------------------------------------------------------------------------
     // 5) Launch the Simulation Kernel

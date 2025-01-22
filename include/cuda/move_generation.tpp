@@ -250,11 +250,10 @@ __device__ __forceinline__ void TryCapture(
 }
 
 __device__ __forceinline__ void TryKingMoves(
-    board_index_t figure_idx, board_t all_pieces, board_t enemy_pieces, board_t kings, move_t* out_moves,
+    board_index_t figure_idx, board_t all_pieces, board_t enemy_pieces, board_t /* kings */, move_t* out_moves,
     u8& out_num_moves, move_flags_t& out_capture_mask, move_flags_t& per_board_flags, u8& flags
 )
 {
-    // We attempt all four diagonals
     TryDiagonal<Direction::kUpLeft>(
         figure_idx, all_pieces, enemy_pieces, figure_idx, out_moves, out_num_moves, out_capture_mask, per_board_flags,
         flags

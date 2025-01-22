@@ -12,12 +12,12 @@ namespace checkers::gpu::launchers
 // A helper to see if a global capture/move was flagged
 static bool GlobalCaptureFound(const MoveGenResult &result)
 {
-    return ((result.h_per_board_flags[0] >> checkers::MoveFlagsConstants::kCaptureFound) & 1) == 1;
+    return ((result.h_per_board_flags[0] >> move_gen::MoveFlagsConstants::kCaptureFound) & 1) == 1;
 }
 
 static bool GlobalMoveFound(const MoveGenResult &result)
 {
-    return ((result.h_per_board_flags[0] >> checkers::MoveFlagsConstants::kMoveFound) & 1) == 1;
+    return ((result.h_per_board_flags[0] >> move_gen::MoveFlagsConstants::kMoveFound) & 1) == 1;
 }
 
 /**
@@ -339,7 +339,7 @@ TEST(GpuMoveGenerationTest, ExceedThreadsAndMemory)
 
     // Define board_count as (maxTotalThreads / board_size) +
     size_t exceed_factor = 30;
-    size_t board_size    = move_gen::BoardConstants::kBoardSize;
+    size_t board_size    = BoardConstants::kBoardSize;
     size_t board_count   = (maxTotalThreads / board_size) + exceed_factor;
 
     // Create a sample board

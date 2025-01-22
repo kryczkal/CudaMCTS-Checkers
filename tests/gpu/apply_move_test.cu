@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 #include <vector>
 
+#include "checkers_defines.hpp"
 #include "cpu/board_helpers.hpp"
 #include "cuda/capture_lookup_table.cuh"
 #include "cuda/launchers.cuh"
@@ -27,7 +28,7 @@ TEST(GpuApplyMoveTest, SingleBoardNoMove)
     board.kings = 0;
 
     std::vector<GpuBoard> boards{board};
-    std::vector<move_t> moves{MoveConstants::kInvalidMove};
+    std::vector<move_t> moves{move_gen::MoveConstants::kInvalidMove};
 
     auto updated = HostApplyMoves(boards, moves);
     ASSERT_EQ(updated.size(), 1u);

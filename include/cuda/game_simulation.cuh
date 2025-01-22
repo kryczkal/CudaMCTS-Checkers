@@ -45,6 +45,7 @@ __global__ void SimulateCheckersGamesOneBoardPerBlock(
     const board_t* d_whites, const board_t* d_blacks, const board_t* d_kings, u8* d_scores, const u8* d_seeds,
     const int max_iterations, const u64 n_boards
 );
+
 }  // namespace checkers::gpu
 
 #endif  // MCTS_CHECKERS_INCLUDE_CUDA_GAME_SIMULATION_CUH_

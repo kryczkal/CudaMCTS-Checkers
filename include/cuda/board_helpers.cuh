@@ -4,6 +4,16 @@
 #include "cassert"
 #include "checkers_defines.hpp"
 
+namespace checkers::gpu
+{
+
+template <typename UnsignedFlagType>
+__device__ __forceinline__ constexpr u8 ReadFlag(const UnsignedFlagType flags, const u8 index)
+{
+    return ((flags >> index) & 1);
+}
+}  // namespace checkers::gpu
+
 namespace checkers::gpu::move_gen
 {
 enum class RowParity { kEven, kOdd };
@@ -30,12 +40,6 @@ __device__ __forceinline__ constexpr board_index_t DecodeMove(const move_t move)
         constexpr move_t kToMask = 0xFF00U;
         return static_cast<board_index_t>((move & kToMask) >> 8);
     }
-}
-
-template <typename UnsignedFlagType>
-__device__ __forceinline__ constexpr u8 ReadFlag(const UnsignedFlagType flags, const u8 index)
-{
-    return ((flags >> index) & 1);
 }
 
 __device__ __forceinline__ constexpr u8 IsOnEdge(const board_t edge_mask, const board_index_t index)
@@ -88,9 +92,6 @@ __device__ __forceinline__ constexpr i8 GetParityOffset(RowParity parity)
 
 __device__ __forceinline__ constexpr RowParity GetRowParity(board_index_t index)
 {
-    //    assert(index < BoardConstants::kBoardSize);
-
-    // TODO: Validate in assembly that this modulo is optmized to & with a bitmask
     return (index % (2 * BoardConstants::kBoardEdgeLength)) >= BoardConstants::kBoardEdgeLength ? RowParity::kOdd
                                                                                                 : RowParity::kEven;
 }

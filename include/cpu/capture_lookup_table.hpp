@@ -8,8 +8,7 @@
 namespace checkers::cpu::apply_move
 {
 
-extern std::array<
-    std::array<board_t, gpu::move_gen::BoardConstants::kBoardSize>, gpu::move_gen::BoardConstants::kBoardSize>
+extern std::array<std::array<board_t, gpu::BoardConstants::kBoardSize>, gpu::BoardConstants::kBoardSize>
     h_kCaptureLookUpTable;
 
 }  // namespace checkers::cpu::apply_move

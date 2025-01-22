@@ -9,7 +9,7 @@ namespace checkers::gpu::apply_move
 {
 bool is_initialized = false;
 
-__constant__ board_t d_kCaptureLookUpTable[move_gen::BoardConstants::kBoardSize * move_gen::BoardConstants::kBoardSize];
+__constant__ board_t d_kCaptureLookUpTable[BoardConstants::kBoardSize * BoardConstants::kBoardSize];
 
 void InitializeCaptureLookupTable()
 {
@@ -17,18 +17,17 @@ void InitializeCaptureLookupTable()
         return;
     }
     // Flatten the 2D host array to a 1D array
-    std::array<board_t, move_gen::BoardConstants::kBoardSize * move_gen::BoardConstants::kBoardSize> flatTable{};
-    for (size_t i = 0; i < move_gen::BoardConstants::kBoardSize; ++i) {
-        for (size_t j = 0; j < move_gen::BoardConstants::kBoardSize; ++j) {
-            flatTable[i * move_gen::BoardConstants::kBoardSize + j] =
-                checkers::cpu::apply_move::h_kCaptureLookUpTable[i][j];
+    std::array<board_t, BoardConstants::kBoardSize * BoardConstants::kBoardSize> flatTable{};
+    for (size_t i = 0; i < BoardConstants::kBoardSize; ++i) {
+        for (size_t j = 0; j < BoardConstants::kBoardSize; ++j) {
+            flatTable[i * BoardConstants::kBoardSize + j] = checkers::cpu::apply_move::h_kCaptureLookUpTable[i][j];
         }
     }
 
     // Copy the flattened data to constant memory on the device
     CHECK_CUDA_ERROR(cudaMemcpyToSymbol(
         d_kCaptureLookUpTable, flatTable.data(),
-        sizeof(board_t) * move_gen::BoardConstants::kBoardSize * move_gen::BoardConstants::kBoardSize
+        sizeof(board_t) * BoardConstants::kBoardSize * BoardConstants::kBoardSize
     ));
 }
 }  // namespace checkers::gpu::apply_move

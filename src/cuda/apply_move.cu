@@ -9,11 +9,9 @@ namespace checkers::gpu::apply_move
 
 __device__ void ApplyMoveOnSingleBoard(move_t move, board_t& white_bits, board_t& black_bits, board_t& king_bits)
 {
-    using checkers::gpu::move_gen::ReadFlag;
-
     board_index_t from = move_gen::DecodeMove<move_gen::MovePart::From>(move);
     board_index_t to   = move_gen::DecodeMove<move_gen::MovePart::To>(move);
-    if (move == MoveConstants::kInvalidMove) {
+    if (move == move_gen::MoveConstants::kInvalidMove) {
         // No move to apply
         return;
     }
@@ -40,7 +38,7 @@ __device__ void ApplyMoveOnSingleBoard(move_t move, board_t& white_bits, board_t
 
     // Eliminate captured pieces (using the precomputed capture mask)
     // d_kCaptureLookUpTable is in constant memory
-    board_t captureMask = d_kCaptureLookUpTable[from * move_gen::BoardConstants::kBoardSize + to];
+    board_t captureMask = d_kCaptureLookUpTable[from * BoardConstants::kBoardSize + to];
     white_bits &= captureMask;
     black_bits &= captureMask;
     king_bits &= captureMask;

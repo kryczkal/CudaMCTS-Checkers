@@ -5,14 +5,12 @@
 
 namespace checkers::cpu::apply_move
 {
-std::array<std::array<board_t, gpu::move_gen::BoardConstants::kBoardSize>, gpu::move_gen::BoardConstants::kBoardSize>
+std::array<std::array<board_t, gpu::BoardConstants::kBoardSize>, gpu::BoardConstants::kBoardSize>
     h_kCaptureLookUpTable = []() {
-        std::array<
-            std::array<board_t, gpu::move_gen::BoardConstants::kBoardSize>, gpu::move_gen::BoardConstants::kBoardSize>
-            table{};
+        std::array<std::array<board_t, gpu::BoardConstants::kBoardSize>, gpu::BoardConstants::kBoardSize> table{};
 
-        for (board_index_t from = 0; from < gpu::move_gen::BoardConstants::kBoardSize; ++from) {
-            for (board_index_t to = from + 1; to < gpu::move_gen::BoardConstants::kBoardSize; ++to) {
+        for (board_index_t from = 0; from < gpu::BoardConstants::kBoardSize; ++from) {
+            for (board_index_t to = from + 1; to < gpu::BoardConstants::kBoardSize; ++to) {
                 // We'll try to walk from 'from' to 'to' in DownLeft, then DownRight. If neither hits 'to', mask = ~0u.
                 board_t mask = 0;
                 bool found   = false;

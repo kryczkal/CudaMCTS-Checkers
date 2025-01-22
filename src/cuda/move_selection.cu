@@ -13,18 +13,17 @@ __device__ move_t SelectRandomMoveForSingleBoard(
 )
 {
     using gpu::move_gen::kNumMaxMovesPerPiece;
-    using gpu::move_gen::ReadFlag;
 
     // Detect if the board has a capture flagged
-    const bool capture_required = ReadFlag(per_board_flags, MoveFlagsConstants::kCaptureFound);
+    const bool capture_required = ReadFlag(per_board_flags, move_gen::MoveFlagsConstants::kCaptureFound);
 
-    move_t chosen_move = MoveConstants::kInvalidMove;
+    move_t chosen_move = move_gen::MoveConstants::kInvalidMove;
 
     // Attempt picking one piece in random wrap-around order
-    const board_index_t initial_figure_idx = seed % move_gen::BoardConstants::kBoardSize;
+    const board_index_t initial_figure_idx = seed % BoardConstants::kBoardSize;
 
-    for (board_index_t i = 0; i < move_gen::BoardConstants::kBoardSize; i++) {
-        board_index_t candidate_square = (initial_figure_idx + i) % move_gen::BoardConstants::kBoardSize;
+    for (board_index_t i = 0; i < BoardConstants::kBoardSize; i++) {
+        board_index_t candidate_square = (initial_figure_idx + i) % BoardConstants::kBoardSize;
 
         // If no sub-moves for this square, skip
         u8 count_for_candidate = move_counts[candidate_square];
@@ -105,9 +104,9 @@ __global__ void SelectBestMoves(
         move_flags_t flags = d_per_board_flags[idx];
         u8& seedRef        = d_seeds[idx];
 
-        const move_t* boardMoves  = &d_moves[idx * (move_gen::BoardConstants::kBoardSize * kNumMaxMovesPerPiece)];
-        const u8* boardMoveCounts = &d_move_counts[idx * move_gen::BoardConstants::kBoardSize];
-        const move_flags_t* boardCaptures = &d_move_capture_mask[idx * move_gen::BoardConstants::kBoardSize];
+        const move_t* boardMoves          = &d_moves[idx * (BoardConstants::kBoardSize * kNumMaxMovesPerPiece)];
+        const u8* boardMoveCounts         = &d_move_counts[idx * BoardConstants::kBoardSize];
+        const move_flags_t* boardCaptures = &d_move_capture_mask[idx * BoardConstants::kBoardSize];
 
         move_t chosenMove = SelectBestMoveForSingleBoard(
             white_bits, black_bits, king_bits, boardMoves, boardMoveCounts, boardCaptures, flags, seedRef

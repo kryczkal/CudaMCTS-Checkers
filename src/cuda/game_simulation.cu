@@ -3,7 +3,6 @@
 #include "cuda/board_helpers.cuh"
 #include "cuda/game_simulation.cuh"
 #include "cuda/move_generation.cuh"
-#include "cuda/move_generation.tpp"
 #include "cuda/move_selection.cuh"
 
 namespace checkers::gpu
@@ -24,12 +23,10 @@ __global__ void SimulateCheckersGamesOneBoardPerBlock(
     const int max_iterations, const u64 n_boards
 )
 {
-    using move_gen::ReadFlag;
-
     // Each board uses 32 threads. So total threads in this block is (kNumBoardsPerBlock * 32).
     // Identify the localBoardIdx (which board within the block) and localThreadInBoard (0..31).
     //    const int globalThreadIdx      = blockDim.x * blockIdx.x + threadIdx.x;
-    const int threadsPerBoard      = move_gen::BoardConstants::kBoardSize;
+    const int threadsPerBoard      = BoardConstants::kBoardSize;
     const int totalBoardsThisBlock = kNumBoardsPerBlock;
 
     // The localBoardIdx is which board within the block [0..kNumBoardsPerBlock-1].
@@ -67,9 +64,9 @@ __global__ void SimulateCheckersGamesOneBoardPerBlock(
     // s_captureMasks: 32 flags
     // s_perBoardFlags: 1 per board
     static constexpr int kNumMaxMovesPerPiece = checkers::gpu::move_gen::kNumMaxMovesPerPiece;
-    __shared__ move_t s_moves[kNumBoardsPerBlock][move_gen::BoardConstants::kBoardSize * kNumMaxMovesPerPiece];
-    __shared__ u8 s_moveCounts[kNumBoardsPerBlock][move_gen::BoardConstants::kBoardSize];
-    __shared__ move_flags_t s_captureMasks[kNumBoardsPerBlock][move_gen::BoardConstants::kBoardSize];
+    __shared__ move_t s_moves[kNumBoardsPerBlock][BoardConstants::kBoardSize * kNumMaxMovesPerPiece];
+    __shared__ u8 s_moveCounts[kNumBoardsPerBlock][BoardConstants::kBoardSize];
+    __shared__ move_flags_t s_captureMasks[kNumBoardsPerBlock][BoardConstants::kBoardSize];
     __shared__ move_flags_t s_perBoardFlags[kNumBoardsPerBlock];
     __shared__ bool s_hasCapture[kNumBoardsPerBlock];
     PrintCheckpoint(localThreadInBoard, 3);
@@ -206,7 +203,7 @@ __global__ void SimulateCheckersGamesOneBoardPerBlock(
             s_seed[localBoardIdx] = static_cast<u8>(localSeed + 13);
 
             // If no move => the current side loses
-            if (chosen == MoveConstants::kInvalidMove) {
+            if (chosen == move_gen::MoveConstants::kInvalidMove) {
                 s_outcome[localBoardIdx] = (s_currentTurn[localBoardIdx] == 0) ? 2 : 1;
             }
             s_chosenMove[localBoardIdx] = chosen;
@@ -282,8 +279,7 @@ __global__ void SimulateCheckersGamesOneBoardPerBlock(
             __syncthreads();
 
             // See if captures exist. We'll check the capture flag in s_perBoardFlags
-            bool hasCapture = false;
-            if (ReadFlag(s_perBoardFlags[localBoardIdx], MoveFlagsConstants::kCaptureFound)) {
+            if (ReadFlag(s_perBoardFlags[localBoardIdx], move_gen::MoveFlagsConstants::kCaptureFound)) {
                 s_hasCapture[localBoardIdx] = true;
             }
             __syncthreads();
@@ -308,7 +304,7 @@ __global__ void SimulateCheckersGamesOneBoardPerBlock(
                 );
                 s_seed[localBoardIdx] = static_cast<u8>(localSeed + 7);  // update seed
 
-                if (chainMv == MoveConstants::kInvalidMove) {
+                if (chainMv == move_gen::MoveConstants::kInvalidMove) {
                     // can't continue capturing
                     s_chosenMove[localBoardIdx] = chainMv;
                 } else {
@@ -324,22 +320,23 @@ __global__ void SimulateCheckersGamesOneBoardPerBlock(
             __syncthreads();
 
             // If chosen move is invalid => break
-            if (s_chosenMove[localBoardIdx] == MoveConstants::kInvalidMove) {
+            if (s_chosenMove[localBoardIdx] == move_gen::MoveConstants::kInvalidMove) {
                 break;
             }
         }  // end while (chain capturing)
 
         // 7) Check promotion
         if (localThreadInBoard == 0) {
-            s_kings[localBoardIdx] |= (s_whites[localBoardIdx] & move_gen::BoardConstants::kTopBoardEdgeMask);
-            s_kings[localBoardIdx] |= (s_blacks[localBoardIdx] & move_gen::BoardConstants::kBottomBoardEdgeMask);
+            s_kings[localBoardIdx] |= (s_whites[localBoardIdx] & BoardConstants::kTopBoardEdgeMask);
+            s_kings[localBoardIdx] |= (s_blacks[localBoardIdx] & BoardConstants::kBottomBoardEdgeMask);
         }
         PrintCheckpoint(localThreadInBoard, 16);
         __syncthreads();
 
         // 8) 40-move rule or “non-reversible” logic. We'll do it if your game wants that.
         if (localThreadInBoard == 0) {
-            bool wasCapture = ((s_perBoardFlags[localBoardIdx] >> MoveFlagsConstants::kCaptureFound) & 1U) != 0U;
+            bool wasCapture =
+                ((s_perBoardFlags[localBoardIdx] >> move_gen::MoveFlagsConstants::kCaptureFound) & 1U) != 0U;
 
             // from square of s_chosenMove:
             board_index_t fromSq =
