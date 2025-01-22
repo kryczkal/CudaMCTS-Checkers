@@ -1,6 +1,7 @@
 #ifndef MCTS_CHECKERS_INCLUDE_CUDA_UTILS_CUH_
 #define MCTS_CHECKERS_INCLUDE_CUDA_UTILS_CUH_
 
+#include "cuda_runtime.h"
 /**
  * @brief Utility class for CUDA related functions
  */

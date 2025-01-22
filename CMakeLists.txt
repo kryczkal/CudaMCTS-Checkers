@@ -10,6 +10,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 ############################# Cuda Specific Flags ############################
 set(CMAKE_CUDA_SEPARABLE_COMPILATION ON)
+set(CMAKE_CUDA_RESOLVE_DEVICE_SYMBOLS ON)
 set(CMAKE_CUDA_ARCHITECTURES 75 80 86)
 
 ################################ Source Files ################################
@@ -27,6 +28,7 @@ target_include_directories(${PROJECT_LIB_NAME} PUBLIC ${CUDAToolkit_INCLUDE_DIRS
 target_link_libraries(${PROJECT_LIB_NAME} PUBLIC CUDA::cudart)
 
 ############################### Compile Options ###############################
+
 if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Release CACHE STRING "Choose the type of build (Debug or Release)" FORCE)
 endif()

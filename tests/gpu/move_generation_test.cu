@@ -5,7 +5,8 @@
 #include "cpu/board_helpers.hpp"
 #include "cuda/launchers.cuh"
 
-using namespace checkers::gpu::launchers;
+namespace checkers::gpu::launchers
+{
 
 // A helper to see if a global capture/move was flagged
 static bool GlobalCaptureFound(const MoveGenResult &result)
@@ -375,3 +376,5 @@ TEST(GpuMoveGenerationTest, ExceedThreadsAndMemory)
         EXPECT_TRUE(captureFound) << "Capture flag not set for board index " << idx;
     }
 }
+
+}  // namespace checkers::gpu::launchers

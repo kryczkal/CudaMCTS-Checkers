@@ -3,9 +3,6 @@
 
 #include "array"
 #include "checkers_defines.hpp"
-#include "cuda/apply_move.cuh"
-#include "cuda/board_helpers.cuh"
-#include "cuda_utils.cuh"
 
 namespace checkers::gpu::apply_move
 {

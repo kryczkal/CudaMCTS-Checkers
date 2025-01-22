@@ -1,5 +1,6 @@
 #include "cuda/apply_move.cuh"
 #include "cuda/board_helpers.cuh"
+#include "cuda/game_simulation.cuh"
 #include "cuda/launchers.cuh"
 #include "cuda/move_generation.cuh"
 #include "cuda/move_selection.cuh"
@@ -383,6 +384,83 @@ std::vector<move_t> HostSelectBestMoves(
     CHECK_CUDA_ERROR(cudaFree(d_best_moves));
 
     return bestMoves;
+}
+
+std::vector<u8> HostSimulateCheckersGames(
+    const std::vector<board_t>& h_whites, const std::vector<board_t>& h_blacks, const std::vector<board_t>& h_kings,
+    const std::vector<u8>& h_seeds, int max_iterations
+)
+{
+    //--------------------------------------------------------------------------
+    // 1) Basic checks
+    //--------------------------------------------------------------------------
+    const size_t n_boards = h_whites.size();
+    std::vector<u8> results(n_boards, 0);
+
+    if (n_boards == 0) {
+        return results;
+    }
+
+    //--------------------------------------------------------------------------
+    // 2) Allocate device memory
+    //--------------------------------------------------------------------------
+    board_t* d_whites = nullptr;
+    board_t* d_blacks = nullptr;
+    board_t* d_kings  = nullptr;
+    u8* d_scores      = nullptr;
+    u8* d_seeds       = nullptr;
+
+    CHECK_CUDA_ERROR(cudaMalloc(&d_whites, n_boards * sizeof(board_t)));
+    CHECK_CUDA_ERROR(cudaMalloc(&d_blacks, n_boards * sizeof(board_t)));
+    CHECK_CUDA_ERROR(cudaMalloc(&d_kings, n_boards * sizeof(board_t)));
+    CHECK_CUDA_ERROR(cudaMalloc(&d_scores, n_boards * sizeof(u8)));
+    CHECK_CUDA_ERROR(cudaMalloc(&d_seeds, n_boards * sizeof(u8)));
+
+    //--------------------------------------------------------------------------
+    // 3) Copy data from host to device
+    //--------------------------------------------------------------------------
+    CHECK_CUDA_ERROR(cudaMemcpy(d_whites, h_whites.data(), n_boards * sizeof(board_t), cudaMemcpyHostToDevice));
+    CHECK_CUDA_ERROR(cudaMemcpy(d_blacks, h_blacks.data(), n_boards * sizeof(board_t), cudaMemcpyHostToDevice));
+    CHECK_CUDA_ERROR(cudaMemcpy(d_kings, h_kings.data(), n_boards * sizeof(board_t), cudaMemcpyHostToDevice));
+    CHECK_CUDA_ERROR(cudaMemcpy(d_seeds, h_seeds.data(), n_boards * sizeof(u8), cudaMemcpyHostToDevice));
+
+    // Initialize scores to 0 (in-progress)
+    std::vector<u8> initScores(n_boards, 0);
+    CHECK_CUDA_ERROR(cudaMemcpy(d_scores, initScores.data(), n_boards * sizeof(u8), cudaMemcpyHostToDevice));
+
+    //--------------------------------------------------------------------------
+    // 4) Determine kernel launch configuration
+    //--------------------------------------------------------------------------
+    const int threadsPerBlock = 256;
+    const int blocks          = static_cast<int>((n_boards + threadsPerBlock - 1) / threadsPerBlock);
+
+    //--------------------------------------------------------------------------
+    // 5) Launch the simulation kernel
+    //--------------------------------------------------------------------------
+    SimulateCheckersGames<<<blocks, threadsPerBlock>>>(
+        d_whites, d_blacks, d_kings, d_scores, static_cast<u64>(n_boards), d_seeds, max_iterations
+    );
+    CHECK_LAST_CUDA_ERROR();
+    CHECK_CUDA_ERROR(cudaDeviceSynchronize());
+
+    //--------------------------------------------------------------------------
+    // 6) Copy final results from device to host
+    //--------------------------------------------------------------------------
+    CHECK_CUDA_ERROR(cudaMemcpy(results.data(), d_scores, n_boards * sizeof(u8), cudaMemcpyDeviceToHost));
+
+    //--------------------------------------------------------------------------
+    // 7) Free device memory
+    //--------------------------------------------------------------------------
+    CHECK_CUDA_ERROR(cudaFree(d_whites));
+    CHECK_CUDA_ERROR(cudaFree(d_blacks));
+    CHECK_CUDA_ERROR(cudaFree(d_kings));
+    CHECK_CUDA_ERROR(cudaFree(d_scores));
+    CHECK_CUDA_ERROR(cudaFree(d_seeds));
+
+    //--------------------------------------------------------------------------
+    // 8) Return the outcomes
+    //--------------------------------------------------------------------------
+    return results;
 }
 
 }  // namespace checkers::gpu::launchers

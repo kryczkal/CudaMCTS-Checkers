@@ -5,8 +5,8 @@
 #include "cuda/capture_lookup_table.cuh"
 #include "cuda/launchers.cuh"
 
-using namespace checkers;
-using namespace checkers::gpu::launchers;
+namespace checkers::gpu::launchers
+{
 
 TEST(GpuApplyMoveTest, NoBoardsNoMoves)
 {
@@ -190,3 +190,5 @@ TEST(GpuApplyMoveTest, CaptureDoesNotRemoveUncapturedEnemyPieces2)
     EXPECT_EQ(updated[0].black, (1u << 4) | (1u << 10));
     EXPECT_EQ(updated[0].kings, (1u << 28));
 }
+
+}  // namespace checkers::gpu::launchers

@@ -4,8 +4,8 @@
 #include "cpu/board_helpers.hpp"
 #include "cuda/launchers.cuh"
 
-using namespace checkers;
-using namespace checkers::gpu::launchers;
+namespace checkers::gpu::launchers
+{
 
 TEST(GpuMoveSelectionTest, NoBoards)
 {
@@ -125,9 +125,8 @@ TEST(GpuMoveSelectionTest, SingleBoardMultipleMoves)
 
 TEST(GpuMoveSelectionTest, CaptureMoveIsSelectedOverNonCaptureMove)
 {
-    const size_t kTotalSquares       = BoardConstants::kBoardSize;
-    const size_t kMovesPerPiece      = gpu::move_gen::kNumMaxMovesPerPiece;
-    const size_t kTotalMovesPerBoard = kTotalSquares * kMovesPerPiece;
+    const size_t kTotalSquares  = BoardConstants::kBoardSize;
+    const size_t kMovesPerPiece = gpu::move_gen::kNumMaxMovesPerPiece;
 
     GpuBoard board;
     board.setPieceAt(12, 'W');  // White piece
@@ -164,9 +163,8 @@ TEST(GpuMoveSelectionTest, CaptureMoveIsSelectedOverNonCaptureMove)
 TEST(GpuMoveSelectionTest, OnlyCaptureMovesAreSelectedWhenMultipleCapturesAvailable)
 {
     // Define constants
-    const size_t kTotalSquares       = BoardConstants::kBoardSize;
-    const size_t kMovesPerPiece      = gpu::move_gen::kNumMaxMovesPerPiece;
-    const size_t kTotalMovesPerBoard = kTotalSquares * kMovesPerPiece;
+    const size_t kTotalSquares  = BoardConstants::kBoardSize;
+    const size_t kMovesPerPiece = gpu::move_gen::kNumMaxMovesPerPiece;
 
     // Setup a board with two white pieces that can perform captures
     GpuBoard board;
@@ -211,3 +209,5 @@ TEST(GpuMoveSelectionTest, OnlyCaptureMovesAreSelectedWhenMultipleCapturesAvaila
     EXPECT_TRUE((best[0] == captureMove12) || (best[0] == captureMove20))
         << "Expected one of the capture moves to be selected, but got: " << best[0];
 }
+
+}  // namespace checkers::gpu::launchers

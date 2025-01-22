@@ -154,9 +154,6 @@ __device__ __forceinline__ void TryMoveForward(
     // Helper lambda for writing a move to the d_moves array
     auto writeMove = [&](bool is_move_invalid, board_index_t to_idx) {
         is_move_invalid |= !ReadFlag(flags, kIsPieceOnBoardFlagIndex);
-        if (!is_move_invalid) {
-            printf("[%d] Move to %d\n", figure_idx, to_idx);
-        }
         const move_t move = EncodeMove(figure_idx, to_idx);
         d_moves[move_idx] = is_move_invalid ? MoveConstants::kInvalidMove : move;
         move_idx          = is_move_invalid ? move_idx : move_idx + 1;
@@ -229,9 +226,6 @@ __device__ __forceinline__ void TryCapture(
     auto writeCapture = [&](bool is_capture_invalid, board_index_t to_idx) {
         const move_t move = EncodeMove(figure_idx, to_idx);
         is_capture_invalid |= !ReadFlag(flags, kIsPieceOnBoardFlagIndex);
-        if (!is_capture_invalid) {
-            printf("[%d] Capture to %d\n", figure_idx, to_idx);
-        }
         d_moves[move_idx] = is_capture_invalid ? MoveConstants::kInvalidMove : move;
         d_move_capture_mask |= is_capture_invalid ? 0 : (1 << num_moves);
         move_idx  = is_capture_invalid ? move_idx : move_idx + 1;
@@ -302,13 +296,6 @@ __device__ __forceinline__ void TryDiagonal(
     auto writeKingMove = [&](bool is_capture_invalid, bool is_capture, board_index_t to_idx) {
         const move_t move = EncodeMove(figure_idx, to_idx);
         is_capture_invalid |= !ReadFlag(flags, kIsPieceOnBoardFlagIndex);
-        if (!is_capture_invalid) {
-            if (is_capture) {
-                printf("[%d] Capture to %d\n", figure_idx, to_idx);
-            } else {
-                printf("[%d] Move to %d\n", figure_idx, to_idx);
-            }
-        }
         d_moves[move_idx] = is_capture_invalid ? MoveConstants::kInvalidMove : move;
         d_move_capture_masks |= is_capture_invalid || !is_capture ? 0 : (1 << num_moves);
         move_idx  = is_capture_invalid ? move_idx : move_idx + 1;
@@ -335,9 +322,6 @@ __device__ __forceinline__ void TryDiagonal(
                   !IsPieceAt(enemy_pieces, next_idx) | IsPieceAt(all_pieces, next_jump_idx))
                  << kInvalidJumpFlagIndex;
         capturing = capturing || !ReadFlag(flags, kInvalidJumpFlagIndex);
-        if (capturing) {
-            printf("[%d] Capturing to %d\n", figure_idx, next_jump_idx);
-        }
 
         current_idx            = next_idx;
         const bool shouldStop2 = IsOnEdge<direction>(next_idx) ||

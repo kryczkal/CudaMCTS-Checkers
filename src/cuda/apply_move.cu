@@ -6,7 +6,7 @@
 namespace checkers::gpu::apply_move
 {
 __device__ void ApplyMoveOnBoardIdx(
-    const board_index_t board_idx,
+    const u64 board_idx,
     // Board States
     board_t *d_whites, board_t *d_blacks, board_t *d_kings,
     // Moves
