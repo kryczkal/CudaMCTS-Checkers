@@ -19,20 +19,6 @@ using move_flags_t  = u16;
 namespace gpu::move_gen
 {
 static constexpr u8 kNumMaxMovesPerPiece = 13;
-}  // namespace gpu::move_gen
-
-class MoveConstants
-{
-    public:
-    static constexpr move_t kInvalidMove = 0xFFFF;
-};
-
-class MoveFlagsConstants
-{
-    public:
-    static constexpr u8 kMoveFound    = 0;
-    static constexpr u8 kCaptureFound = 1;
-};
 
 class BoardConstants
 {
@@ -74,6 +60,20 @@ class BoardConstants
 
     static constexpr board_t kEdgeMask =
         kLeftBoardEdgeMask | kRightBoardEdgeMask | kTopBoardEdgeMask | kBottomBoardEdgeMask;
+};
+}  // namespace gpu::move_gen
+
+class MoveConstants
+{
+    public:
+    static constexpr move_t kInvalidMove = 0xFFFF;
+};
+
+class MoveFlagsConstants
+{
+    public:
+    static constexpr u8 kMoveFound    = 0;
+    static constexpr u8 kCaptureFound = 1;
 };
 
 }  // namespace checkers

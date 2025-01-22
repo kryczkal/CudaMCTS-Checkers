@@ -1,52 +1,60 @@
+#include <iostream>
+#include "checkers_defines.hpp"
 #include "cuda/apply_move.cuh"
 #include "cuda/board_helpers.cuh"
 #include "cuda/capture_lookup_table.cuh"
-#include "iostream"
 
 namespace checkers::gpu::apply_move
 {
-__device__ void ApplyMoveOnBoardIdx(
-    const u64 board_idx,
-    // Board States
-    board_t *d_whites, board_t *d_blacks, board_t *d_kings,
-    // Moves
-    const move_t *d_moves,
-    // Number of boards to process
-    const u64 n_boards
-)
+
+__device__ void ApplyMoveOnSingleBoard(move_t move, board_t& white_bits, board_t& black_bits, board_t& king_bits)
 {
-    board_index_t from = move_gen::DecodeMove<move_gen::MovePart::From>(d_moves[board_idx]);
-    board_index_t to   = move_gen::DecodeMove<move_gen::MovePart::To>(d_moves[board_idx]);
+    using checkers::gpu::move_gen::ReadFlag;
 
-    // board[from] = board[to]
-    d_whites[board_idx] |= ((d_whites[board_idx] >> from) & 1) << to;
-    d_blacks[board_idx] |= ((d_blacks[board_idx] >> from) & 1) << to;
-    d_kings[board_idx] |= ((d_kings[board_idx] >> from) & 1) << to;
+    board_index_t from = move_gen::DecodeMove<move_gen::MovePart::From>(move);
+    board_index_t to   = move_gen::DecodeMove<move_gen::MovePart::To>(move);
+    if (move == MoveConstants::kInvalidMove) {
+        // No move to apply
+        return;
+    }
 
-    // board[from] = 0
-    d_whites[board_idx] &= ~(1 << from);
-    d_blacks[board_idx] &= ~(1 << from);
-    d_kings[board_idx] &= ~(1 << from);
+    // Move the bits from "from" to "to"
+    const bool from_is_white = ReadFlag(white_bits, from);
+    const bool from_is_black = ReadFlag(black_bits, from);
+    const bool from_is_king  = ReadFlag(king_bits, from);
 
-    // 0 out everything in between the move
-    board_t kCaptureMask = d_kCaptureLookUpTable[from * BoardConstants::kBoardSize + to];
-    d_blacks[board_idx] &= kCaptureMask;
-    d_whites[board_idx] &= kCaptureMask;
-    d_kings[board_idx] &= kCaptureMask;
+    if (from_is_white) {
+        white_bits |= (1ULL << to);
+    }
+    if (from_is_black) {
+        black_bits |= (1ULL << to);
+    }
+    if (from_is_king) {
+        king_bits |= (1ULL << to);
+    }
+
+    // Clear the original square
+    white_bits &= ~(1ULL << from);
+    black_bits &= ~(1ULL << from);
+    king_bits &= ~(1ULL << from);
+
+    // Eliminate captured pieces (using the precomputed capture mask)
+    // d_kCaptureLookUpTable is in constant memory
+    board_t captureMask = d_kCaptureLookUpTable[from * move_gen::BoardConstants::kBoardSize + to];
+    white_bits &= captureMask;
+    black_bits &= captureMask;
+    king_bits &= captureMask;
 }
 
 __global__ void ApplyMove(
-    // Board States
-    board_t *d_whites, board_t *d_blacks, board_t *d_kings,
-    // Moves
-    const move_t *d_moves,
-    // Number of boards to process
-    const u64 n_boards
+    board_t* d_whites, board_t* d_blacks, board_t* d_kings, const move_t* d_moves, const u64 n_boards
 )
 {
-    u64 board_idx = blockIdx.x * blockDim.x + threadIdx.x;
-    for (; board_idx < n_boards; board_idx += gridDim.x * blockDim.x) {
-        ApplyMoveOnBoardIdx(board_idx, d_whites, d_blacks, d_kings, d_moves, n_boards);
+    u64 idx = blockIdx.x * blockDim.x + threadIdx.x;
+    while (idx < n_boards) {
+        ApplyMoveOnSingleBoard(d_moves[idx], d_whites[idx], d_blacks[idx], d_kings[idx]);
+        idx += gridDim.x * blockDim.x;
     }
 }
+
 }  // namespace checkers::gpu::apply_move

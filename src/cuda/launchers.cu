@@ -1,5 +1,7 @@
+#include "checkers_defines.hpp"
 #include "cuda/apply_move.cuh"
 #include "cuda/board_helpers.cuh"
+#include "cuda/capture_lookup_table.cuh"
 #include "cuda/game_simulation.cuh"
 #include "cuda/launchers.cuh"
 #include "cuda/move_generation.cuh"
@@ -298,7 +300,7 @@ std::vector<move_t> HostSelectBestMoves(
     }
 
     // Basic size checks (could be expanded with error handling)
-    const size_t totalSquares       = BoardConstants::kBoardSize;
+    const size_t totalSquares       = move_gen::BoardConstants::kBoardSize;
     const size_t movesPerPiece      = gpu::move_gen::kNumMaxMovesPerPiece;
     const size_t totalMovesPerBoard = totalSquares * movesPerPiece;
     if (moves.size() != n_boards * totalMovesPerBoard) {
@@ -391,9 +393,9 @@ std::vector<u8> HostSimulateCheckersGames(
     const std::vector<u8>& h_seeds, int max_iterations
 )
 {
-    //--------------------------------------------------------------------------
-    // 1) Basic checks
-    //--------------------------------------------------------------------------
+    // Ensure that all input vectors have the same size
+    assert(h_whites.size() == h_blacks.size() && h_blacks.size() == h_kings.size() && h_kings.size() == h_seeds.size());
+
     const size_t n_boards = h_whites.size();
     std::vector<u8> results(n_boards, 0);
 
@@ -402,7 +404,12 @@ std::vector<u8> HostSimulateCheckersGames(
     }
 
     //--------------------------------------------------------------------------
-    // 2) Allocate device memory
+    // 1) Initialize the Capture Lookup Table on the Device
+    //--------------------------------------------------------------------------
+    checkers::gpu::apply_move::InitializeCaptureLookupTable();
+
+    //--------------------------------------------------------------------------
+    // 2) Allocate Device Memory for Board States and Seeds
     //--------------------------------------------------------------------------
     board_t* d_whites = nullptr;
     board_t* d_blacks = nullptr;
@@ -417,39 +424,41 @@ std::vector<u8> HostSimulateCheckersGames(
     CHECK_CUDA_ERROR(cudaMalloc(&d_seeds, n_boards * sizeof(u8)));
 
     //--------------------------------------------------------------------------
-    // 3) Copy data from host to device
+    // 3) Copy Data from Host to Device
     //--------------------------------------------------------------------------
     CHECK_CUDA_ERROR(cudaMemcpy(d_whites, h_whites.data(), n_boards * sizeof(board_t), cudaMemcpyHostToDevice));
     CHECK_CUDA_ERROR(cudaMemcpy(d_blacks, h_blacks.data(), n_boards * sizeof(board_t), cudaMemcpyHostToDevice));
     CHECK_CUDA_ERROR(cudaMemcpy(d_kings, h_kings.data(), n_boards * sizeof(board_t), cudaMemcpyHostToDevice));
     CHECK_CUDA_ERROR(cudaMemcpy(d_seeds, h_seeds.data(), n_boards * sizeof(u8), cudaMemcpyHostToDevice));
 
-    // Initialize scores to 0 (in-progress)
-    std::vector<u8> initScores(n_boards, 0);
-    CHECK_CUDA_ERROR(cudaMemcpy(d_scores, initScores.data(), n_boards * sizeof(u8), cudaMemcpyHostToDevice));
+    // Initialize scores on the device to zero (in-progress)
+    CHECK_CUDA_ERROR(cudaMemset(d_scores, 0, n_boards * sizeof(u8)));
 
     //--------------------------------------------------------------------------
-    // 4) Determine kernel launch configuration
+    // 4) Determine Kernel Launch Configuration
     //--------------------------------------------------------------------------
-    const int threadsPerBlock = 256;
-    const int blocks          = static_cast<int>((n_boards + threadsPerBlock - 1) / threadsPerBlock);
+    const u64 threadsPerBlock = move_gen::BoardConstants::kBoardSize * checkers::gpu::kNumBoardsPerBlock;
+    const u64 blocks =
+        static_cast<int>((n_boards * move_gen::BoardConstants::kBoardSize + threadsPerBlock - 1) / threadsPerBlock);
 
     //--------------------------------------------------------------------------
-    // 5) Launch the simulation kernel
+    // 5) Launch the Simulation Kernel
     //--------------------------------------------------------------------------
-    SimulateCheckersGames<<<blocks, threadsPerBlock>>>(
-        d_whites, d_blacks, d_kings, d_scores, static_cast<u64>(n_boards), d_seeds, max_iterations
+    SimulateCheckersGamesOneBoardPerBlock<<<blocks, threadsPerBlock>>>(
+        d_whites, d_blacks, d_kings, d_scores, d_seeds, max_iterations, static_cast<u64>(n_boards)
     );
+
+    // Check for any kernel launch errors
     CHECK_LAST_CUDA_ERROR();
     CHECK_CUDA_ERROR(cudaDeviceSynchronize());
 
     //--------------------------------------------------------------------------
-    // 6) Copy final results from device to host
+    // 6) Copy Results Back from Device to Host
     //--------------------------------------------------------------------------
     CHECK_CUDA_ERROR(cudaMemcpy(results.data(), d_scores, n_boards * sizeof(u8), cudaMemcpyDeviceToHost));
 
     //--------------------------------------------------------------------------
-    // 7) Free device memory
+    // 7) Free Device Memory
     //--------------------------------------------------------------------------
     CHECK_CUDA_ERROR(cudaFree(d_whites));
     CHECK_CUDA_ERROR(cudaFree(d_blacks));
@@ -458,7 +467,7 @@ std::vector<u8> HostSimulateCheckersGames(
     CHECK_CUDA_ERROR(cudaFree(d_seeds));
 
     //--------------------------------------------------------------------------
-    // 8) Return the outcomes
+    // 8) Return the Simulation Outcomes
     //--------------------------------------------------------------------------
     return results;
 }

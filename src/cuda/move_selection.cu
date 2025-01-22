@@ -1,122 +1,121 @@
 #include <cassert>
 #include <cstdio>
+#include "checkers_defines.hpp"
 #include "cuda/board_helpers.cuh"
 #include "cuda/move_selection.cuh"
 
 namespace checkers::gpu::move_selection
 {
 
-__device__ __forceinline__ void RandomSelection(
-    const board_index_t board_idx, const u32* d_whites, const u32* d_blacks, const u32* d_kings,
-    // Moves
-    const move_t* d_moves, const u8* d_move_counts, const move_flags_t* d_move_capture,
-    const move_flags_t* d_per_board_flags,
-    // Num Boards
-    const u64 n_boards,
-    // Seeds for randomness
-    const u8* seeds,
-    // Output
-    move_t* d_best_moves
+__device__ move_t SelectRandomMoveForSingleBoard(
+    const board_t white_bits, const board_t black_bits, const board_t king_bits, const move_t* moves,
+    const u8* move_counts, const move_flags_t* capture_masks, const move_flags_t per_board_flags, u8& seed
 )
 {
-    // 1) Detect if this board has at least one capture flagged
-    const move_flags_t flags_for_this_board = d_per_board_flags[board_idx];
-    const bool capture_required = move_gen::ReadFlag(flags_for_this_board, MoveFlagsConstants::kCaptureFound) != 0U;
+    using gpu::move_gen::kNumMaxMovesPerPiece;
+    using gpu::move_gen::ReadFlag;
 
-    // 2) Attempt to pick one piece in random wrap-around order
-    const board_index_t board_fields_begin = board_idx * BoardConstants::kBoardSize;
-    const board_index_t initial_figure_idx = seeds[board_idx] % BoardConstants::kBoardSize;
+    // Detect if the board has a capture flagged
+    const bool capture_required = ReadFlag(per_board_flags, MoveFlagsConstants::kCaptureFound);
 
     move_t chosen_move = MoveConstants::kInvalidMove;
 
-    // We'll do at most 32 iterations to find any piece with valid moves.
-    for (board_index_t i = 0; i < BoardConstants::kBoardSize; i++) {
-        board_index_t candidateSquare = (initial_figure_idx + i) % BoardConstants::kBoardSize;
-        u8 count_for_candidate        = d_move_counts[board_fields_begin + candidateSquare];
+    // Attempt picking one piece in random wrap-around order
+    const board_index_t initial_figure_idx = seed % move_gen::BoardConstants::kBoardSize;
+
+    for (board_index_t i = 0; i < move_gen::BoardConstants::kBoardSize; i++) {
+        board_index_t candidate_square = (initial_figure_idx + i) % move_gen::BoardConstants::kBoardSize;
+
+        // If no sub-moves for this square, skip
+        u8 count_for_candidate = move_counts[candidate_square];
         if (count_for_candidate == 0) {
             continue;
         }
 
+        // If capturing is required, check if this square has any capturing sub-move
         if (capture_required) {
-            const move_flags_t capture_mask = d_move_capture[board_fields_begin + candidateSquare];
+            move_flags_t capture_mask = capture_masks[candidate_square];
             if (capture_mask == 0) {
-                continue;
+                continue;  // no captures from this square
             }
 
-            // We know at least one sub-move is a capture => let's pick from them
-            // We'll gather their sub-move indices into a small array.
-            u8 capturingSubMoves[16];
-            u8 capturingCount = 0;
+            // Gather indices of sub-moves that are captures
+            u8 capturing_sub_moves[16];
+            u8 captuing_count = 0;
             for (u8 sub = 0; sub < count_for_candidate; sub++) {
-                // Is sub-th move a capture?
-                bool is_capture = move_gen::ReadFlag(capture_mask, sub) != 0U;
+                const bool is_capture = ReadFlag(capture_mask, sub);
                 if (is_capture) {
-                    capturingSubMoves[capturingCount++] = sub;
+                    capturing_sub_moves[captuing_count++] = sub;
                 }
             }
-
-            // If capturingCount == 0, continue searching next square
-            if (capturingCount == 0) {
+            if (captuing_count == 0) {
+                // Shouldn’t happen if capture_mask != 0, but just in case
                 continue;
             }
 
-            // Otherwise pick one capturing sub-move index at random
-            u8 random_sub      = seeds[board_idx] % capturingCount;
-            u8 chosen_sub_move = capturingSubMoves[random_sub];
+            // Pick one capturing sub-move at random
+            const u8 chosen_sub_idx = seed % captuing_count;
+            const u8 sub_move_index = capturing_sub_moves[chosen_sub_idx];
+            chosen_move             = moves[candidate_square * kNumMaxMovesPerPiece + sub_move_index];
 
-            // Flatten out to find the actual move in d_moves
-            const u64 moves_base  = (u64)board_idx * (BoardConstants::kBoardSize * move_gen::kNumMaxMovesPerPiece);
-            const u64 piece_base  = (u64)candidateSquare * move_gen::kNumMaxMovesPerPiece;
-            const u64 final_index = moves_base + piece_base + chosen_sub_move;
+            // Update the seed
+            seed = static_cast<u8>(seed + 13);
 
-            chosen_move = d_moves[final_index];
             break;
         } else {
-            // Normal (no forced captures) => pick any sub-move at random
-            u8 random_sub_move_idx = seeds[board_idx] % count_for_candidate;
+            // If no capture forced, pick any sub-move at random
+            const u8 chosen_sub_idx = seed % count_for_candidate;
+            chosen_move             = moves[candidate_square * kNumMaxMovesPerPiece + chosen_sub_idx];
 
-            const u64 moves_base  = (u64)board_idx * (BoardConstants::kBoardSize * move_gen::kNumMaxMovesPerPiece);
-            const u64 piece_base  = (u64)candidateSquare * move_gen::kNumMaxMovesPerPiece;
-            const u64 final_index = moves_base + piece_base + random_sub_move_idx;
+            // Update the seed
+            seed = static_cast<u8>(seed + 13);
 
-            chosen_move = d_moves[final_index];
             break;
         }
     }
-    d_best_moves[board_idx] = chosen_move;
+
+    return chosen_move;
 }
-__device__ __forceinline__ void SelectBestMovesForBoardIdx(
-    const board_index_t board_idx, const u32* d_whites, const u32* d_blacks, const u32* d_kings, const move_t* d_moves,
-    const u8* d_move_counts, const move_flags_t* d_move_capture_mask, const move_flags_t* d_per_board_flags,
-    const u64 n_boards, const u8* seeds, move_t* d_best_moves
+
+__device__ move_t SelectBestMoveForSingleBoard(
+    const board_t white_bits, const board_t black_bits, const board_t king_bits, const move_t* moves,
+    const u8* move_counts, const move_flags_t* capture_masks, const move_flags_t per_board_flags, u8& seed
 )
 {
-    RandomSelection(
-        board_idx, d_whites, d_blacks, d_kings, d_moves, d_move_counts, d_move_capture_mask, d_per_board_flags,
-        n_boards, seeds, d_best_moves
+    // Random move for now, but possibility of adding different types of choosing (heuristic, etc.)
+    return SelectRandomMoveForSingleBoard(
+        white_bits, black_bits, king_bits, moves, move_counts, capture_masks, per_board_flags, seed
     );
 }
 
 __global__ void SelectBestMoves(
-    // Board states (unused in random selection, but placeholders for expansions)
-    const u32* d_whites, const u32* d_blacks, const u32* d_kings,
-    // Moves
-    const move_t* d_moves, const u8* d_move_counts, const move_flags_t* d_move_capture_mask,
-    const move_flags_t* d_per_board_flags,
-    // Number of boards
-    const u64 n_boards,
-    // Seeds
-    const u8* seeds,
-    // Output
-    move_t* d_best_moves
+    const board_t* d_whites, const board_t* d_blacks, const board_t* d_kings, const move_t* d_moves,
+    const u8* d_move_counts, const move_flags_t* d_move_capture_mask, const move_flags_t* d_per_board_flags,
+    const u64 n_boards, u8* d_seeds, move_t* d_best_moves
 )
 {
-    for (u64 board_idx = blockIdx.x * blockDim.x + threadIdx.x; board_idx < n_boards;
-         board_idx += gridDim.x * blockDim.x) {
-        SelectBestMovesForBoardIdx(
-            board_idx, d_whites, d_blacks, d_kings, d_moves, d_move_counts, d_move_capture_mask, d_per_board_flags,
-            n_boards, seeds, d_best_moves
+    using gpu::move_gen::kNumMaxMovesPerPiece;
+
+    // Each thread handles exactly one board
+    u64 idx = blockIdx.x * blockDim.x + threadIdx.x;
+    while (idx < n_boards) {
+        board_t white_bits = d_whites[idx];
+        board_t black_bits = d_blacks[idx];
+        board_t king_bits  = d_kings[idx];
+        move_flags_t flags = d_per_board_flags[idx];
+        u8& seedRef        = d_seeds[idx];
+
+        const move_t* boardMoves  = &d_moves[idx * (move_gen::BoardConstants::kBoardSize * kNumMaxMovesPerPiece)];
+        const u8* boardMoveCounts = &d_move_counts[idx * move_gen::BoardConstants::kBoardSize];
+        const move_flags_t* boardCaptures = &d_move_capture_mask[idx * move_gen::BoardConstants::kBoardSize];
+
+        move_t chosenMove = SelectBestMoveForSingleBoard(
+            white_bits, black_bits, king_bits, boardMoves, boardMoveCounts, boardCaptures, flags, seedRef
         );
+
+        d_best_moves[idx] = chosenMove;
+
+        idx += gridDim.x * blockDim.x;
     }
 }
 

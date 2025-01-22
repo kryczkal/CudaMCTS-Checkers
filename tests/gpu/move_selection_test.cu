@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 #include <vector>
 
+#include "checkers_defines.hpp"
 #include "cpu/board_helpers.hpp"
 #include "cuda/launchers.cuh"
 
@@ -23,7 +24,7 @@ TEST(GpuMoveSelectionTest, NoBoards)
 TEST(GpuMoveSelectionTest, SingleBoardSingleMove)
 {
     // If there's only one available move, that should always be selected
-    const size_t kTotalSquares  = BoardConstants::kBoardSize;
+    const size_t kTotalSquares  = move_gen::BoardConstants::kBoardSize;
     const size_t kMovesPerPiece = gpu::move_gen::kNumMaxMovesPerPiece;
 
     // Board with a single piece
@@ -64,7 +65,7 @@ TEST(GpuMoveSelectionTest, SingleBoardMultipleMoves)
 {
     // We test random selection logic by using different seeds
     // that index into the same array of possible moves.
-    const size_t totalSquares  = BoardConstants::kBoardSize;
+    const size_t totalSquares  = move_gen::BoardConstants::kBoardSize;
     const size_t movesPerPiece = gpu::move_gen::kNumMaxMovesPerPiece;
 
     GpuBoard board;
@@ -125,7 +126,7 @@ TEST(GpuMoveSelectionTest, SingleBoardMultipleMoves)
 
 TEST(GpuMoveSelectionTest, CaptureMoveIsSelectedOverNonCaptureMove)
 {
-    const size_t kTotalSquares  = BoardConstants::kBoardSize;
+    const size_t kTotalSquares  = move_gen::BoardConstants::kBoardSize;
     const size_t kMovesPerPiece = gpu::move_gen::kNumMaxMovesPerPiece;
 
     GpuBoard board;
@@ -163,7 +164,7 @@ TEST(GpuMoveSelectionTest, CaptureMoveIsSelectedOverNonCaptureMove)
 TEST(GpuMoveSelectionTest, OnlyCaptureMovesAreSelectedWhenMultipleCapturesAvailable)
 {
     // Define constants
-    const size_t kTotalSquares  = BoardConstants::kBoardSize;
+    const size_t kTotalSquares  = move_gen::BoardConstants::kBoardSize;
     const size_t kMovesPerPiece = gpu::move_gen::kNumMaxMovesPerPiece;
 
     // Setup a board with two white pieces that can perform captures

@@ -49,7 +49,7 @@ struct GpuBoard {
  */
 struct MoveGenResult {
     // We track 32 squares, with up to kNumMaxMovesPerPiece = 13 possible moves per piece
-    static constexpr size_t kTotalSquares  = checkers::BoardConstants::kBoardSize;
+    static constexpr size_t kTotalSquares  = checkers::gpu::move_gen::BoardConstants::kBoardSize;
     static constexpr size_t kMovesPerPiece = checkers::gpu::move_gen::kNumMaxMovesPerPiece;
 
     // Flattened array of moves: size 32*kMovesPerPiece
@@ -107,25 +107,26 @@ std::vector<move_t> HostSelectBestMoves(
 );
 
 /**
- * @brief Host wrapper that runs the SimulateCheckersGames kernel, simulating multiple boards in parallel.
- *        Each board's final result is written to the returned std::vector<u8>:
- *        - 1 = White wins
- *        - 2 = Black wins
- *        - 3 = Draw
+ * @brief Launches the simulation of multiple checkers games on the GPU.
  *
- * @param h_whites  Host array of white piece bitmasks for each board.
- * @param h_blacks  Host array of black piece bitmasks for each board.
- * @param h_kings   Host array of king flags for each board.
- * @param h_seeds   Host array of random seeds (one per board).
- * @param max_iterations Maximum half-moves to simulate before declaring a draw.
+ * This function initializes the necessary data structures, copies board states
+ * to the GPU, launches the simulation kernel, retrieves the outcomes, and cleans up.
  *
- * @return A std::vector<u8> of size n_boards, holding the final outcome of each board.
+ * @param h_whites      Host vector of white piece bitmasks for each board.
+ * @param h_blacks      Host vector of black piece bitmasks for each board.
+ * @param h_kings       Host vector of king bitmasks for each board.
+ * @param h_seeds       Host vector of random seeds (one per board).
+ * @param max_iterations Maximum number of half-moves to simulate before declaring a draw.
+ *
+ * @return A vector of outcomes for each board:
+ *         - 1 = White wins
+ *         - 2 = Black wins
+ *         - 3 = Draw
  */
 std::vector<u8> HostSimulateCheckersGames(
     const std::vector<board_t>& h_whites, const std::vector<board_t>& h_blacks, const std::vector<board_t>& h_kings,
     const std::vector<u8>& h_seeds, int max_iterations
 );
-
 }  // namespace checkers::gpu::launchers
 
 #endif  // MCTS_CHECKERS_INCLUDE_CUDA_LAUNCHERS_CUH_

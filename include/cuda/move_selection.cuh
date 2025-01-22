@@ -7,63 +7,70 @@
 
 namespace checkers::gpu::move_selection
 {
-__device__ __forceinline__ void RandomSelection(
-    const board_index_t board_idx, const u32* d_whites, const u32* d_blacks, const u32* d_kings,
-    // Moves
-    const move_t* d_moves, const u8* d_move_counts, const move_flags_t* d_move_capture,
-    const move_flags_t* d_per_board_flags,
-    // Num Boards
-    const u64 n_boards,
-    // Seeds for randomness
-    const u8* seeds,
-    // Output
-    move_t* d_best_moves
-);
-
 /**
- * \brief Selects the best moves for a specific board index.
+ * @brief Selects a single move (randomly) for a single board, given that
+ *        all indexing is already offset to this board. If a capture is found
+ *        in the per-board flags, randomly pick among capturing moves only.
  *
- * \param board_idx The index of the board to select the best moves for.
- * \param d_whites Pointer to the array of white pieces on the boards.
- * \param d_blacks Pointer to the array of black pieces on the boards.
- * \param d_kings Pointer to the array of king pieces on the boards.
- * \param d_moves Pointer to the array of moves.
- * \param d_move_counts Pointer to the array of move counts.
- * \param d_move_capture_mask Pointer to the array of move capture masks.
- * \param d_per_board_flags Pointer to the array of per-board flags.
- * \param n_boards The number of boards to process.
- * \param seeds Pointer to the array of random seeds.
- * \param d_best_moves Pointer to the array where the best moves will be stored.
+ * @param white_bits  (unused by the random policy, but included for future expansions).
+ * @param black_bits  (unused by the random policy, but included for future expansions).
+ * @param king_bits   (unused by the random policy, but included for future expansions).
+ * @param moves       Pointer to a flattened array of size: (32 * kNumMaxMovesPerPiece).
+ * @param move_counts Pointer to an array of 32 counters, each telling how many moves a square has.
+ * @param capture_masks Pointer to an array of 32 bitmasks. If bit i is set in capture_masks[sq],
+ *                     that sub-move is a capture.
+ * @param per_board_flags The combined flags for the entire board, e.g. MoveFlagsConstants::kCaptureFound, etc.
+ * @param seed        Random seed reference for generating the random pick.
+ *
+ * @return Chosen move. If no moves are found, returns kInvalidMove.
  */
-__device__ __forceinline__ void SelectBestMovesForBoardIdx(
-    const board_index_t board_idx, const u32* d_whites, const u32* d_blacks, const u32* d_kings, const move_t* d_moves,
-    const u8* d_move_counts, const move_flags_t* d_move_capture_mask, const move_flags_t* d_per_board_flags,
-    const u64 n_boards, const u8* seeds, move_t* d_best_moves
+__device__ move_t SelectRandomMoveForSingleBoard(
+    const board_t white_bits, const board_t black_bits, const board_t king_bits, const move_t* moves,
+    const u8* move_counts, const move_flags_t* capture_masks, const move_flags_t per_board_flags, u8& seed
 );
 
 /**
- * \brief Selects a "best" move (or randomly chosen move) for each board.
+ * @brief Selects the best move for a single board, given that all indexing is already offset to this board.
  *
- * The kernel expects exactly one thread per board. It uses the associated
- * seed in \p seeds[board_idx] to pick a random piece that has one or more moves,
- * and then to pick a random sub-move among that piece's valid moves.
+ * @param white_bits  (unused by the best move policy, but included for future expansions).
+ * @param black_bits  (unused by the best move policy, but included for future expansions).
+ * @param king_bits   (unused by the best move policy, but included for future expansions).
+ * @param moves       Pointer to a flattened array of size: (32 * kNumMaxMovesPerPiece).
+ * @param move_counts Pointer to an array of 32 counters, each telling how many moves a square has.
+ * @param capture_masks Pointer to an array of 32 bitmasks. If bit i is set in capture_masks[sq],
+ *                     that sub-move is a capture.
+ * @param per_board_flags The combined flags for the entire board, e.g. MoveFlagsConstants::kCaptureFound, etc.
+ * @param seed        Random seed reference for generating the random pick.
  *
- * \param d_whites The white piece bitmask per board (unused in random selection, but included for future expansions).
- * \param d_blacks The black piece bitmask per board (unused in random selection).
- * \param d_kings The king bitmask per board (unused in random selection).
- * \param d_moves Flattened array of all generated moves for all boards. Size = n_boards * 32 * kNumMaxMovesPerPiece.
- * \param d_move_counts For each board, for each of the 32 squares, how many moves are valid. Size = n_boards * 32.
- * \param d_move_capture_mask Per-square capture mask (unused here, but included for expansions). Size = n_boards * 32.
- * \param d_per_board_flags Additional flags per board (unused in random selection).
- * \param n_boards Number of boards to process.
- * \param seeds One random byte per board.
- * \param d_best_moves Output: the chosen move per board.
+ * @return Chosen move. If no moves are found, returns kInvalidMove.
+ */
+__device__ move_t SelectBestMoveForSingleBoard(
+    const board_t white_bits, const board_t black_bits, const board_t king_bits, const move_t* moves,
+    const u8* move_counts, const move_flags_t* capture_masks, const move_flags_t per_board_flags, u8& seed
+);
+
+/**
+ * @brief Kernel that picks one move for each board. The caller ensures that
+ *        d_moves/d_move_counts/d_move_capture_mask/d_per_board_flags
+ *        have valid data. The chosen moves are returned in d_best_moves.
+ *
+ * @param d_whites White bitmasks per board.
+ * @param d_blacks Black bitmasks per board.
+ * @param d_kings King bitmasks per board.
+ * @param d_moves Flattened array of size n_boards * (32*kNumMaxMovesPerPiece).
+ * @param d_move_counts Flattened array of size n_boards * 32.
+ * @param d_move_capture_mask Flattened array of size n_boards * 32.
+ * @param d_per_board_flags Size = n_boards.
+ * @param n_boards Number of boards.
+ * @param d_seeds One random byte per board.
+ * @param d_best_moves One move_t per board for the final chosen move.
  */
 __global__ void SelectBestMoves(
-    const u32* d_whites, const u32* d_blacks, const u32* d_kings, const move_t* d_moves, const u8* d_move_counts,
-    const move_flags_t* d_move_capture_mask, const move_flags_t* d_per_board_flags, const u64 n_boards, const u8* seeds,
-    move_t* d_best_moves
+    const board_t* d_whites, const board_t* d_blacks, const board_t* d_kings, const move_t* d_moves,
+    const u8* d_move_counts, const move_flags_t* d_move_capture_mask, const move_flags_t* d_per_board_flags,
+    const u64 n_boards, u8* d_seeds, move_t* d_best_moves
 );
+
 }  // namespace checkers::gpu::move_selection
 
 #endif  // MCTS_CHECKERS_INCLUDE_CUDA_MOVE_SELECTION_CUH_

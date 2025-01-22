@@ -2,6 +2,7 @@
 #include <unordered_map>
 #include <vector>
 
+#include "checkers_defines.hpp"
 #include "cpu/board_helpers.hpp"
 #include "cuda/launchers.cuh"
 
@@ -338,7 +339,7 @@ TEST(GpuMoveGenerationTest, ExceedThreadsAndMemory)
 
     // Define board_count as (maxTotalThreads / board_size) +
     size_t exceed_factor = 30;
-    size_t board_size    = BoardConstants::kBoardSize;
+    size_t board_size    = move_gen::BoardConstants::kBoardSize;
     size_t board_count   = (maxTotalThreads / board_size) + exceed_factor;
 
     // Create a sample board
