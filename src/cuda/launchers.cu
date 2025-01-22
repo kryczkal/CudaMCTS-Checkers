@@ -7,6 +7,7 @@
 #include "cuda/launchers.cuh"
 #include "cuda/move_generation.cuh"
 #include "cuda/move_selection.cuh"
+#include "cuda/reductions.cuh"
 
 namespace checkers::gpu::launchers
 {
@@ -389,21 +390,21 @@ std::vector<move_t> HostSelectBestMoves(
     return bestMoves;
 }
 
-std::vector<u8> HostSimulateCheckersGames(const std::vector<SimulationParam>& params, int max_iterations)
+std::vector<SimulationResult> HostSimulateCheckersGames(const std::vector<SimulationParam>& params, int max_iterations)
 {
-    using namespace checkers::gpu;
-    // Compute the total number of simulations
-    u64 n_simulation_counts = params.size();
+    const u64 n_simulation_counts = static_cast<u64>(params.size());
+
     u64 n_total_simulations = 0;
     for (auto& p : params) {
         n_total_simulations += p.n_simulations;
     }
+
     if (n_total_simulations == 0) {
         return {};
     }
 
     //--------------------------------------------------------------------------
-    // Prepare host arrays
+    // Prepare host arrays for white, black, and king bitmasks
     //--------------------------------------------------------------------------
     std::vector<board_t> h_whites(n_simulation_counts);
     std::vector<board_t> h_blacks(n_simulation_counts);
@@ -415,11 +416,11 @@ std::vector<u8> HostSimulateCheckersGames(const std::vector<SimulationParam>& pa
         h_whites[i]     = params[i].white;
         h_blacks[i]     = params[i].black;
         h_kings[i]      = params[i].king;
-        h_startTurns[i] = params[i].startTurn;
+        h_startTurns[i] = params[i].start_turn;
         h_simCounts[i]  = params[i].n_simulations;
     }
 
-    // Generate random seeds for each simulation
+    // Generate random seeds for each of the total simulations
     std::vector<u8> h_seeds(n_total_simulations);
     {
         std::mt19937 rng((unsigned)time(nullptr));
@@ -436,7 +437,7 @@ std::vector<u8> HostSimulateCheckersGames(const std::vector<SimulationParam>& pa
     board_t* d_kings  = nullptr;
     u8* d_startTurns  = nullptr;
     u64* d_simCounts  = nullptr;
-    u8* d_scores      = nullptr;
+    u8* d_scores      = nullptr;  // size = n_total_simulations
     u8* d_seeds       = nullptr;
 
     CHECK_CUDA_ERROR(cudaMalloc(&d_whites, n_simulation_counts * sizeof(board_t)));
@@ -468,31 +469,60 @@ std::vector<u8> HostSimulateCheckersGames(const std::vector<SimulationParam>& pa
     // Scores set to 0 initially
     CHECK_CUDA_ERROR(cudaMemset(d_scores, 0, n_total_simulations * sizeof(u8)));
 
-    // Seeds:
+    // Seeds
     CHECK_CUDA_ERROR(cudaMemcpy(d_seeds, h_seeds.data(), n_total_simulations * sizeof(u8), cudaMemcpyHostToDevice));
 
     //--------------------------------------------------------------------------
-    // Launch the kernel
+    // Launch the simulation kernel
+    //--------------------------------------------------------------------------
+    //   This kernel populates d_scores with {0,1,2} for each simulation.
+    //   Implementation is the same as shown in your code, except that it
+    //   places final results in d_scores[] for each simulation.
     //--------------------------------------------------------------------------
     const int threadsPerBlock = kNumBoardsPerBlock * BoardConstants::kBoardSize;
     const u64 totalThreads    = n_total_simulations * BoardConstants::kBoardSize;
     const int blocks          = static_cast<int>((totalThreads + threadsPerBlock - 1) / threadsPerBlock);
 
     SimulateCheckersGamesOneBoardPerBlock<<<blocks, threadsPerBlock>>>(
-        d_whites, d_blacks, d_kings, d_startTurns, d_simCounts, n_simulation_counts, d_scores, d_seeds, max_iterations,
-        n_total_simulations
+        d_whites, d_blacks, d_kings, d_startTurns, d_simCounts, n_simulation_counts,
+        d_scores,  // each simulation’s 0/1/2 outcome
+        d_seeds, max_iterations, n_total_simulations
     );
     CHECK_LAST_CUDA_ERROR();
     CHECK_CUDA_ERROR(cudaDeviceSynchronize());
 
     //--------------------------------------------------------------------------
-    // Copy results back to host
+    // For each batch, sum the portion of d_scores that belongs to that batch.
     //--------------------------------------------------------------------------
-    std::vector<u8> results(n_total_simulations);
-    CHECK_CUDA_ERROR(cudaMemcpy(results.data(), d_scores, n_total_simulations * sizeof(u8), cudaMemcpyDeviceToHost));
+    std::vector<SimulationResult> results(n_simulation_counts);
+
+    u64 offset = 0;
+    for (size_t i = 0; i < n_simulation_counts; i++) {
+        u64 simCount = h_simCounts[i];
+        if (simCount == 0) {
+            // no simulations in this batch
+            results[i].score         = 0.0;
+            results[i].n_simulations = 0;
+            continue;
+        }
+
+        // sum the subarray d_scores[offset .. offset+simCount-1]
+        const u8* d_subarray = d_scores + offset;
+        u64 sum              = DeviceSumU8(d_subarray, simCount);
+
+        // Each result can be 0=lose,1=draw,2=win.
+        // Conversion: final_score = sum_of_all_outcomes / 2.0
+        // so that 2 => 1.0, 1 => 0.5, 0 => 0.0
+        double finalScore = static_cast<double>(sum) / 2.0;
+
+        results[i].score         = finalScore;
+        results[i].n_simulations = simCount;
+
+        offset += simCount;
+    }
 
     //--------------------------------------------------------------------------
-    // Cleanup
+    // Cleanup device memory
     //--------------------------------------------------------------------------
     CHECK_CUDA_ERROR(cudaFree(d_whites));
     CHECK_CUDA_ERROR(cudaFree(d_blacks));

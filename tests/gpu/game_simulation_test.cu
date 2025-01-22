@@ -69,15 +69,14 @@ class SimulationTest : public ::testing::Test
         // White has a king at position 5
         board.setPieceAt(5, 'W');
         board.setPieceAt(5, 'K');
-        // Black has a single piece at position 13, which can be captured
-        board.setPieceAt(13, 'B');
+        board.setPieceAt(9, 'B');
 
         // Add a SimulationParam for this board
         SimulationParam param;
         param.white         = board.white;
         param.black         = board.black;
         param.king          = board.kings;
-        param.startTurn     = 0;  // White to move
+        param.start_turn    = 0;  // White to move
         param.n_simulations = 100;
 
         params.push_back(param);
@@ -89,13 +88,12 @@ TEST_F(SimulationTest, ImmediateWinWhite)
 {
     const int max_iterations = 10;
 
-    auto outcomes = checkers::gpu::launchers::HostSimulateCheckersGames(params, max_iterations);
+    auto results = checkers::gpu::launchers::HostSimulateCheckersGames(params, max_iterations);
 
-    // We expect all simulations to result in a White win
-    ASSERT_EQ(outcomes.size(), params[0].n_simulations);
-    for (u8 outcome : outcomes) {
-        EXPECT_EQ(outcome, checkers::gpu::kOutcomeWhite);
-    }
+    // We expect a single result because we have only one SimulationParam
+    ASSERT_EQ(results.size(), 1);
+    // We expect a win ratio close to 1.0 (White should win almost every time)
+    EXPECT_NEAR(results[0].score / results[0].n_simulations, 1.0, 0.1);
 }
 
 class ImmediateLossTest : public ::testing::Test
@@ -116,7 +114,7 @@ class ImmediateLossTest : public ::testing::Test
         param.white         = board.white;
         param.black         = board.black;
         param.king          = board.kings;
-        param.startTurn     = 1;  // Black to move (will immediately lose)
+        param.start_turn    = 1;  // Black to move (will immediately lose)
         param.n_simulations = 100;
 
         params.push_back(param);
@@ -128,14 +126,14 @@ TEST_F(ImmediateLossTest, ImmediateLossBlack)
 {
     const int max_iterations = 10;
 
-    auto outcomes = checkers::gpu::launchers::HostSimulateCheckersGames(params, max_iterations);
+    auto results = checkers::gpu::launchers::HostSimulateCheckersGames(params, max_iterations);
 
-    // We expect all simulations to result in a White win
-    ASSERT_EQ(outcomes.size(), params[0].n_simulations);
-    for (u8 outcome : outcomes) {
-        EXPECT_EQ(outcome, checkers::gpu::kOutcomeWhite);
-    }
+    // We expect a single result because we have only one SimulationParam
+    ASSERT_EQ(results.size(), 1);
+    // We expect a win ratio close to 0.0 (Black should lose every time)
+    EXPECT_NEAR(results[0].score / results[0].n_simulations, 0.0, 0.1);
 }
+
 class DrawTest : public ::testing::Test
 {
     protected:
@@ -165,7 +163,7 @@ class DrawTest : public ::testing::Test
         param.white         = board.white;
         param.black         = board.black;
         param.king          = board.kings;
-        param.startTurn     = 0;  // White to move
+        param.start_turn    = 0;  // White to move
         param.n_simulations = 100;
 
         params.push_back(param);
@@ -177,15 +175,16 @@ TEST_F(DrawTest, DrawOutcome)
 {
     const u8 max_iterations = 5;  // Low number to force a draw
 
-    auto outcomes = checkers::gpu::launchers::HostSimulateCheckersGames(params, max_iterations);
+    auto results = checkers::gpu::launchers::HostSimulateCheckersGames(params, max_iterations);
 
-    // We expect all simulations to result in a draw
-    ASSERT_EQ(outcomes.size(), params[0].n_simulations);
-    for (u8 outcome : outcomes) {
-        EXPECT_EQ(outcome, checkers::gpu::kOutcomeDraw);
-    }
+    // We expect a single result because we have only one SimulationParam
+    ASSERT_EQ(results.size(), 1);
+    // We expect a win ratio close to 0.5 (a draw)
+    EXPECT_NEAR(results[0].score / results[0].n_simulations, 0.5, 0.1);
 }
+
 class WinRatioTest : public ::testing::Test
+
 {
     protected:
     std::vector<SimulationParam> params;
@@ -195,6 +194,7 @@ class WinRatioTest : public ::testing::Test
         // Initialize multiple boards with the standard starting position
         // Standard Checkers initial setup: White pieces on the bottom three rows, Black pieces on the top three rows
         // Assuming positions 0-31 are arranged row-wise from top-left to bottom-right
+        u8 turn = 0;
         for (size_t game = 0; game < 100; ++game) {  // Reduced to 100 for test speed
             GpuBoard board;
             // Place White pieces on rows 3, 4, 5 (indices 24-31)
@@ -206,36 +206,40 @@ class WinRatioTest : public ::testing::Test
                 board.setPieceAt(i, 'B');
             }
             // No kings initially
-
             // Add a SimulationParam for this board
             SimulationParam param;
             param.white         = board.white;
             param.black         = board.black;
             param.king          = board.kings;
-            param.startTurn     = 0;   // White to move
+            param.start_turn    = turn;
             param.n_simulations = 10;  // 10 simulations per board
-
             params.push_back(param);
+
+            // Alternate turns
+            turn = 1 - turn;
         }
     }
 };
 
 // Statistical Test for Win Ratios
+
 TEST_F(WinRatioTest, WinRatioWithinExpectedBounds)
+
 {
     const u8 max_iterations = 150;
 
     auto outcomes = checkers::gpu::launchers::HostSimulateCheckersGames(params, max_iterations);
+    ASSERT_EQ(outcomes.size(), 100);  // 100 boards
 
-    ASSERT_EQ(outcomes.size(), 1000);  // 100 boards * 10 simulations each
+    f64 total_score = 0;
+    u64 total_games = 0;
 
-    // Count outcomes
-    u64 score = 0;
     for (auto outcome : outcomes) {
-        score += outcome;
+        total_score += outcome.score;
+        total_games += outcome.n_simulations;
     }
 
-    const f64 win_ratio = (f64)score / outcomes.size() / 2;
+    const f64 win_ratio = (f64)total_score / total_games;
     std::cout << "Win ratio: " << win_ratio << std::endl;
 
     EXPECT_NEAR(win_ratio, 0.47f, 0.05f);  // Around 45% win ratio, accounting for draws

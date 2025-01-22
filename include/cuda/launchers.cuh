@@ -58,8 +58,16 @@ struct SimulationParam {
     board_t white;
     board_t black;
     board_t king;
-    u8 startTurn;       // 0=White starts, 1=Black starts
+    u8 start_turn;      // 0=White starts, 1=Black starts
     u64 n_simulations;  // how many times to simulate from this config
+};
+
+/**
+ * \brief Per-batch result: final averaged score + the number of simulations.
+ */
+struct SimulationResult {
+    f64 score;
+    u64 n_simulations;
 };
 
 /**
@@ -128,16 +136,18 @@ std::vector<move_t> HostSelectBestMoves(
 /**
  * @brief Updated function that:
  *   - Accepts a vector of SimulationParam.
- *   - Generates random seeds for the total number of requested simulations internally.
- *   - Launches the updated kernel that processes all simulations in one go.
+ *   - Allocates GPU memory for the board definitions, calls the kernel that
+ *     simulates all the games in one go, storing partial results in d_scores.
+ *   - For each batch, calls an optimized GPU reduction kernel to sum up
+ *     the outcomes in d_scores for that batch.
+ *   - Returns a vector of SimulationResult, containing final .score
+ *     (sum/2.0) and the number of simulations for that batch.
  *
  * @param params          Vector of SimulationParam structures.
  * @param max_iterations  If we reach that many half-moves, declare a draw.
- *
- * @return A vector of size "sum_of(params[i].n_simulations)" with each entry being
- *         2=win,1=draw,0=lose from perspective of 'startTurn'.
+ * @return A vector of size `params.size()`, each entry is SimulationResult.
  */
-std::vector<u8> HostSimulateCheckersGames(const std::vector<SimulationParam>& params, int max_iterations);
+std::vector<SimulationResult> HostSimulateCheckersGames(const std::vector<SimulationParam>& params, int max_iterations);
 }  // namespace checkers::gpu::launchers
 
 #endif  // MCTS_CHECKERS_INCLUDE_CUDA_LAUNCHERS_CUH_
