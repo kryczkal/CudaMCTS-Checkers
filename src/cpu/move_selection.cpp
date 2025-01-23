@@ -32,12 +32,12 @@ move_t SelectRandomMoveForSingleBoard(
             }
 
             // gather the sub-moves that are captures
-            u8 capturingIndices[16];
+            u8 capturing_indices[16];
             u8 capturingCount = 0;
             for (u8 sub = 0; sub < count; sub++) {
                 bool isCap = ReadFlag(cmask, sub);
                 if (isCap) {
-                    capturingIndices[capturingCount++] = sub;
+                    capturing_indices[capturingCount++] = sub;
                 }
             }
             if (capturingCount == 0) {
@@ -45,14 +45,14 @@ move_t SelectRandomMoveForSingleBoard(
             }
 
             // pick one capturing sub-move
-            u8 chosenSub = seed % capturingCount;
-            chosen_move  = moves[sq * kNumMaxMovesPerPiece + capturingIndices[chosenSub]];
+            u8 chosen_sub = seed % capturingCount;
+            chosen_move   = moves[sq * kNumMaxMovesPerPiece + capturing_indices[chosen_sub]];
             seed += 13;  // shift seed
             break;
         } else {
             // no capture forced => pick any sub-move
-            u8 chosenSub = seed % count;
-            chosen_move  = moves[sq * kNumMaxMovesPerPiece + chosenSub];
+            u8 chosen_sub = seed % count;
+            chosen_move   = moves[sq * kNumMaxMovesPerPiece + chosen_sub];
             seed += 13;
             break;
         }

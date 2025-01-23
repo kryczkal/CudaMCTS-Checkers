@@ -11,7 +11,6 @@
 
 namespace checkers::cpu::launchers
 {
-
 std::vector<MoveGenResult> HostGenerateMoves(const std::vector<Board> &boards, Turn turn)
 {
     using namespace checkers::cpu::move_gen;
@@ -78,30 +77,31 @@ std::vector<move_t> HostSelectBestMoves(
 )
 {
     size_t n_boards = boards.size();
-    std::vector<move_t> bestMoves(n_boards, kInvalidMove);
+    std::vector<move_t> best_moves(n_boards, kInvalidMove);
 
     if (n_boards == 0) {
-        return bestMoves;
+        return best_moves;
     }
 
-    size_t totalSquares       = BoardConstants::kBoardSize;
-    size_t movesPerPiece      = kNumMaxMovesPerPiece;
-    size_t totalMovesPerBoard = totalSquares * movesPerPiece;
+    size_t total_squares         = BoardConstants::kBoardSize;
+    size_t moves_per_piece       = kNumMaxMovesPerPiece;
+    size_t total_moves_per_board = total_squares * moves_per_piece;
 
     for (size_t b = 0; b < n_boards; b++) {
         // Offsets
-        const move_t *boardMoves          = &moves[b * totalMovesPerBoard];
-        const u8 *boardCounts             = &move_counts[b * totalSquares];
-        const move_flags_t *boardCaptures = &capture_masks[b * totalSquares];
-        move_flags_t flags                = per_board_flags[b];
-        u8 localSeed                      = seeds[b];
+        const move_t *board_moves          = &moves[b * total_moves_per_board];
+        const u8 *board_counts             = &move_counts[b * total_squares];
+        const move_flags_t *board_captures = &capture_masks[b * total_squares];
+        move_flags_t flags                 = per_board_flags[b];
+        u8 local_seed                      = seeds[b];
 
-        bestMoves[b] = move_selection::SelectBestMoveForSingleBoard(
-            boards[b].white, boards[b].black, boards[b].kings, boardMoves, boardCounts, boardCaptures, flags, localSeed
+        best_moves[b] = move_selection::SelectBestMoveForSingleBoard(
+            boards[b].white, boards[b].black, boards[b].kings, board_moves, board_counts, board_captures, flags,
+            local_seed
         );
     }
 
-    return bestMoves;
+    return best_moves;
 }
 std::vector<SimulationResult> HostSimulateCheckersGames(const std::vector<SimulationParam> &params, int max_iterations)
 {
@@ -119,7 +119,6 @@ std::vector<SimulationResult> HostSimulateCheckersGames(const std::vector<Simula
         return results;
     }
 
-    // Prepare random seeds
     std::vector<u8> seeds(total_sims);
     {
         std::mt19937 rng((unsigned)std::time(nullptr));
@@ -143,33 +142,33 @@ std::vector<SimulationResult> HostSimulateCheckersGames(const std::vector<Simula
         }
 
         // Grab the board
-        board_t wBits   = params[idx].white;
-        board_t bBits   = params[idx].black;
-        board_t kBits   = params[idx].king;
-        bool startBlack = (params[idx].start_turn == 1);
+        board_t w_bits   = params[idx].white;
+        board_t b_bits   = params[idx].black;
+        board_t k_bits   = params[idx].king;
+        bool start_black = (params[idx].start_turn == 1);
 
         // For each simulation
         for (u64 s = 0; s < n_sims; s++) {
-            u64 simIndex = offset + s;
-            u8 seedRef   = seeds[simIndex];
+            u64 sim_index = offset + s;
+            u8 seed_ref   = seeds[sim_index];
 
             // We'll copy the board so we can mutate it
-            board_t whiteBoard      = wBits;
-            board_t blackBoard      = bBits;
-            board_t kingBoard       = kBits;
-            bool currentTurnIsBlack = startBlack;
-            u8 outcome              = 0;  // 1=WhiteWins,2=BlackWins,3=Draw
+            board_t white_board        = w_bits;
+            board_t black_board        = b_bits;
+            board_t king_board         = k_bits;
+            bool current_turn_is_black = start_black;
+            u8 outcome                 = 0;  // 1=WhiteWins,2=BlackWins,3=Draw
 
             // 40-move rule (non-reversible moves) counter
-            u8 nonReversibleCount = 0;
+            u8 non_reversible_count = 0;
 
             // We'll do up to max_iterations half-moves
             for (int moveCount = 0; moveCount < max_iterations; moveCount++) {
                 // Check if someone is out of pieces
-                if (blackBoard == 0) {
+                if (black_board == 0) {
                     outcome = 1;  // White wins
                     break;
-                } else if (whiteBoard == 0) {
+                } else if (white_board == 0) {
                     outcome = 2;  // Black wins
                     break;
                 }
@@ -177,69 +176,109 @@ std::vector<SimulationResult> HostSimulateCheckersGames(const std::vector<Simula
                 // Generate moves for current side
                 MoveGenResult mg;
                 mg.h_per_board_flags[0] = 0;
+
                 // Fill with zeros
-                std::fill(mg.h_moves.begin(), mg.h_moves.end(), kInvalidMove);
                 std::fill(mg.h_move_counts.begin(), mg.h_move_counts.end(), 0);
                 std::fill(mg.h_capture_masks.begin(), mg.h_capture_masks.end(), 0);
 
                 // Each square
                 for (board_index_t sq = 0; sq < BoardConstants::kBoardSize; sq++) {
-                    move_t *outMoves             = &mg.h_moves[sq * kNumMaxMovesPerPiece];
-                    u8 &outCount                 = mg.h_move_counts[sq];
-                    move_flags_t &outCaptureMask = mg.h_capture_masks[sq];
+                    move_t *out_moves              = &mg.h_moves[sq * kNumMaxMovesPerPiece];
+                    u8 &out_count                  = mg.h_move_counts[sq];
+                    move_flags_t &out_capture_mask = mg.h_capture_masks[sq];
 
-                    if (!currentTurnIsBlack) {
+                    if (!current_turn_is_black) {
                         move_gen::GenerateMovesForSinglePiece<Turn::kWhite>(
-                            sq, whiteBoard, blackBoard, kingBoard, outMoves, outCount, outCaptureMask,
+                            sq, white_board, black_board, king_board, out_moves, out_count, out_capture_mask,
                             mg.h_per_board_flags[0]
                         );
                     } else {
                         move_gen::GenerateMovesForSinglePiece<Turn::kBlack>(
-                            sq, whiteBoard, blackBoard, kingBoard, outMoves, outCount, outCaptureMask,
+                            sq, white_board, black_board, king_board, out_moves, out_count, out_capture_mask,
                             mg.h_per_board_flags[0]
                         );
                     }
                 }
 
                 // select a move from mg
-                move_t chosenMove = move_selection::SelectBestMoveForSingleBoard(
-                    whiteBoard, blackBoard, kingBoard, mg.h_moves.data(), mg.h_move_counts.data(),
-                    mg.h_capture_masks.data(), mg.h_per_board_flags[0], seedRef
+                move_t chosen_move = move_selection::SelectBestMoveForSingleBoard(
+                    white_board, black_board, king_board, mg.h_moves.data(), mg.h_move_counts.data(),
+                    mg.h_capture_masks.data(), mg.h_per_board_flags[0], seed_ref
                 );
 
-                if (chosenMove == kInvalidMove) {
+                if (chosen_move == kInvalidMove) {
                     // no moves => side to move loses
-                    outcome = (!currentTurnIsBlack ? 2 : 1);
+                    outcome = (!current_turn_is_black ? 2 : 1);
                     break;
                 }
 
                 // apply the chosen move
-                apply_move::ApplyMoveOnSingleBoard(chosenMove, whiteBoard, blackBoard, kingBoard);
+                apply_move::ApplyMoveOnSingleBoard(chosen_move, white_board, black_board, king_board);
 
-                // check if it was a capture or a king moved
-                bool was_capture      = (mg.h_per_board_flags[0] & (1 << MoveFlagsConstants::kCaptureFound));
-                board_index_t from_sq = move_gen::DecodeMove<move_gen::MovePart::From>(chosenMove);
-                bool from_was_king    = ((kingBoard >> from_sq) & 1U);
+                // check if it was a capture and try to chain
+                bool was_capture    = ReadFlag(mg.h_per_board_flags[0], MoveFlagsConstants::kCaptureFound);
+                board_index_t to_sq = move_gen::DecodeMove<move_gen::MovePart::To>(chosen_move);
 
-                // TODO: Chain captures
+                while (was_capture) {
+                    // Clear move related variables
+                    mg.h_per_board_flags[0] = 0;
+                    mg.h_move_counts[0]     = 0;
+                    mg.h_capture_masks[0]   = 0;
+
+                    move_t *out_moves              = &mg.h_moves[0 * kNumMaxMovesPerPiece];
+                    u8 &out_count                  = mg.h_move_counts[0];
+                    move_flags_t &out_capture_mask = mg.h_capture_masks[0];
+
+                    if (!current_turn_is_black) {
+                        move_gen::GenerateMovesForSinglePiece<Turn::kWhite>(
+                            to_sq, white_board, black_board, king_board, out_moves, out_count, out_capture_mask,
+                            mg.h_per_board_flags[0]
+                        );
+                    } else {
+                        move_gen::GenerateMovesForSinglePiece<Turn::kBlack>(
+                            to_sq, white_board, black_board, king_board, out_moves, out_count, out_capture_mask,
+                            mg.h_per_board_flags[0]
+                        );
+                    }
+
+                    was_capture = ReadFlag(mg.h_per_board_flags[0], MoveFlagsConstants::kCaptureFound);
+                    if (!was_capture) {
+                        break;
+                    }
+
+                    move_t chain_move = move_selection::SelectBestMoveForSingleBoard(
+                        white_board, black_board, king_board, mg.h_moves.data(), mg.h_move_counts.data(),
+                        mg.h_capture_masks.data(), mg.h_per_board_flags[0], seed_ref
+                    );
+
+                    if (chain_move == kInvalidMove) {
+                        break;
+                    }
+
+                    to_sq = move_gen::DecodeMove<move_gen::MovePart::To>(chain_move);
+
+                    apply_move::ApplyMoveOnSingleBoard(chain_move, white_board, black_board, king_board);
+                }
+
+                bool from_was_king = ReadFlag(king_board, to_sq);
 
                 // Promotion
-                kingBoard |= (whiteBoard & BoardConstants::kTopBoardEdgeMask);
-                kingBoard |= (blackBoard & BoardConstants::kBottomBoardEdgeMask);
+                king_board |= (white_board & BoardConstants::kTopBoardEdgeMask);
+                king_board |= (black_board & BoardConstants::kBottomBoardEdgeMask);
 
                 // 40-move rule
                 if (!was_capture && from_was_king) {
-                    nonReversibleCount++;
+                    non_reversible_count++;
                 } else {
-                    nonReversibleCount = 0;
+                    non_reversible_count = 0;
                 }
-                if (nonReversibleCount >= 40) {
+                if (non_reversible_count >= 40) {
                     outcome = 3;  // draw
                     break;
                 }
 
                 // switch turn
-                currentTurnIsBlack = !currentTurnIsBlack;
+                current_turn_is_black = !current_turn_is_black;
             }
 
             // If still 0, declare a draw
@@ -252,17 +291,17 @@ std::vector<SimulationResult> HostSimulateCheckersGames(const std::vector<Simula
             // If 'startBlack == false' => White started, so outcome=1 => "win" for the starter => storeVal=2
             // If outcome=3 => draw => storeVal=1
             // If outcome=the other side => storeVal=0
-            u8 storeVal = 0;  // lose
+            u8 store_val = 0;  // lose
             if (outcome == 3) {
-                storeVal = 1;  // draw
-            } else if (!startBlack && outcome == 1) {
+                store_val = 1;  // draw
+            } else if (!start_black && outcome == 1) {
                 // White started, White wins => storeVal=2
-                storeVal = 2;
-            } else if (startBlack && outcome == 2) {
+                store_val = 2;
+            } else if (start_black && outcome == 2) {
                 // Black started, Black wins => storeVal=2
-                storeVal = 2;
+                store_val = 2;
             }
-            finalScores[simIndex] = storeVal;
+            finalScores[sim_index] = store_val;
         }
 
         // Sum the range finalScores[offset .. offset+n_sims-1]
@@ -275,8 +314,8 @@ std::vector<SimulationResult> HostSimulateCheckersGames(const std::vector<Simula
         // finalScores are in {0=lose,1=draw,2=win}
         // We convert sum_of_outcomes to a fractional score => sum/2.0
         // (2 => 1.0, 1 => 0.5, 0 => 0.0 average)
-        double finalScore  = static_cast<double>(sum) / 2.0;
-        results[idx].score = finalScore;
+        double final_score = static_cast<double>(sum) / 2.0;
+        results[idx].score = final_score;
     }
 
     return results;

@@ -35,10 +35,10 @@ void ApplyMoveOnSingleBoard(move_t move, board_t &white_bits, board_t &black_bit
     black_bits &= ~(1U << from);
     king_bits &= ~(1U << from);
 
-    board_t captureMask = h_kCaptureLookUpTable[from][to];
+    board_t capture_mask = h_kCaptureLookUpTable[from][to];
 
-    white_bits &= captureMask;
-    black_bits &= captureMask;
-    king_bits &= captureMask;
+    white_bits &= capture_mask;
+    black_bits &= capture_mask;
+    king_bits &= capture_mask;
 }
 }  // namespace checkers::cpu::apply_move

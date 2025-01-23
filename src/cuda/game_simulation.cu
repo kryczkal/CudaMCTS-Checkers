@@ -108,21 +108,6 @@ __global__ void SimulateCheckersGames(
     __syncthreads();
 
     // ----------------------------------------------------------------------------
-    // Define a helper function that returns whether a piece belongs to the current side:
-    // currentTurn = 0 => White, 1 => Black.
-    // ----------------------------------------------------------------------------
-    auto IsCurrentSidePiece = [&](board_t w, board_t b, bool turn_black, board_index_t idx) {
-        // turnBlack == false => white's turn, true => black's turn
-        if (!turn_black) {
-            // white turn
-            return ((w >> idx) & 1ULL) != 0ULL;
-        } else {
-            // black turn
-            return ((b >> idx) & 1ULL) != 0ULL;
-        }
-    };
-
-    // ----------------------------------------------------------------------------
     // The main half-move simulation loop.
     // ----------------------------------------------------------------------------
     for (u32 moveCount = 0; moveCount < max_iterations; moveCount++) {
@@ -160,25 +145,27 @@ __global__ void SimulateCheckersGames(
             const board_t k      = s_kings[kLocalBoardIndex];
             const bool turnBlack = s_current_turn[kLocalBoardIndex];
 
-            if (IsCurrentSidePiece(w, b, turnBlack, kLocalThreadInBoardIndex)) {
-                using move_gen::GenerateMovesForSinglePiece;
-                if (!turnBlack) {
-                    // White
-                    GenerateMovesForSinglePiece<Turn::kWhite>(
-                        (board_index_t)kLocalThreadInBoardIndex, w, b, k,
-                        &s_moves[kLocalBoardIndex][kLocalThreadInBoardIndex * kNumMaxMovesPerPiece],
-                        s_move_counts[kLocalBoardIndex][kLocalThreadInBoardIndex],
-                        s_capture_masks[kLocalBoardIndex][kLocalThreadInBoardIndex], s_per_board_flags[kLocalBoardIndex]
-                    );
-                } else {
-                    // Black
-                    GenerateMovesForSinglePiece<Turn::kBlack>(
-                        (board_index_t)kLocalThreadInBoardIndex, w, b, k,
-                        &s_moves[kLocalBoardIndex][kLocalThreadInBoardIndex * kNumMaxMovesPerPiece],
-                        s_move_counts[kLocalBoardIndex][kLocalThreadInBoardIndex],
-                        s_capture_masks[kLocalBoardIndex][kLocalThreadInBoardIndex], s_per_board_flags[kLocalBoardIndex]
-                    );
-                }
+            using move_gen::GenerateMovesForSinglePiece;
+            if (!turnBlack) {
+                // White
+                GenerateMovesForSinglePiece<Turn::kWhite>(
+                    (board_index_t)kLocalThreadInBoardIndex, w, b, k,
+                    &s_moves[kLocalBoardIndex][kLocalThreadInBoardIndex * kNumMaxMovesPerPiece],
+                    s_move_counts[kLocalBoardIndex][kLocalThreadInBoardIndex],
+                    s_capture_masks[kLocalBoardIndex][kLocalThreadInBoardIndex], s_per_board_flags[kLocalBoardIndex]
+                );
+            } else {
+                // Black
+                GenerateMovesForSinglePiece<Turn::kBlack>(
+                    (board_index_t)kLocalThreadInBoardIndex, w, b, k,
+                    &s_moves[kLocalBoardIndex][kLocalThreadInBoardIndex * kNumMaxMovesPerPiece],
+                    s_move_counts[kLocalBoardIndex][kLocalThreadInBoardIndex],
+                    s_capture_masks[kLocalBoardIndex][kLocalThreadInBoardIndex], s_per_board_flags[kLocalBoardIndex]
+                );
+            }
+
+            if (checkers::gpu::ReadFlag(s_per_board_flags[kLocalBoardIndex], MoveFlagsConstants::kCaptureFound)) {
+                s_has_capture[kLocalBoardIndex] = true;
             }
         }
         __syncthreads();
@@ -229,7 +216,7 @@ __global__ void SimulateCheckersGames(
 
         // Chain capturing. We keep capturing if a capture was done and there's a possibility of continuing.
         // The "to" index of the chosen move might still be able to capture more.
-        while (true) {
+        while (s_has_capture[kLocalBoardIndex]) {
             // Clear arrays again for single-piece generation
             {
                 int sq                                = kLocalThreadInBoardIndex;
@@ -248,8 +235,7 @@ __global__ void SimulateCheckersGames(
             board_t k      = s_kings[kLocalBoardIndex];
             bool turnBlack = s_current_turn[kLocalBoardIndex];
 
-            if ((kLocalThreadInBoardIndex == s_chain_from[kLocalBoardIndex]) &&
-                IsCurrentSidePiece(w, b, turnBlack, kLocalThreadInBoardIndex)) {
+            if (kLocalThreadInBoardIndex == s_chain_from[kLocalBoardIndex]) {
                 if (!turnBlack) {
                     move_gen::GenerateMovesForSinglePiece<Turn::kWhite>(
                         (board_index_t)kLocalThreadInBoardIndex, w, b, k,

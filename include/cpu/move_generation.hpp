@@ -159,7 +159,7 @@ static inline void TryDiagonal(
 
     bool stop                 = false;
     board_index_t current_idx = start_idx;
-    bool hasCapturedSoFar     = false;  // track if we do a capturing move
+    bool has_captured_so_far  = false;  // track if we do a capturing move
 
     while (!stop) {
         // next in diagonal
@@ -187,7 +187,7 @@ static inline void TryDiagonal(
             // valid normal move
             move_t mv                = EncodeMove(figure_idx, next_idx);
             out_moves[out_num_moves] = mv;
-            if (hasCapturedSoFar) {
+            if (has_captured_so_far) {
                 // if we had captured before, this move is also a capture
                 out_capture_mask |= (1 << out_num_moves);
                 per_board_flags |= (1 << MoveFlagsConstants::kCaptureFound);
@@ -207,7 +207,7 @@ static inline void TryDiagonal(
                     move_t mv                = EncodeMove(figure_idx, jump_idx);
                     out_moves[out_num_moves] = mv;
                     out_capture_mask |= (1 << out_num_moves);
-                    hasCapturedSoFar = true;
+                    has_captured_so_far = true;
                     out_num_moves++;
                     per_board_flags |= (1 << MoveFlagsConstants::kMoveFound);
                     per_board_flags |= (1 << MoveFlagsConstants::kCaptureFound);
@@ -220,7 +220,7 @@ static inline void TryDiagonal(
                     move_t mv                = EncodeMove(figure_idx, jump_idx);
                     out_moves[out_num_moves] = mv;
                     out_capture_mask |= (1 << out_num_moves);
-                    hasCapturedSoFar = true;
+                    has_captured_so_far = true;
                     out_num_moves++;
                     per_board_flags |= (1 << MoveFlagsConstants::kMoveFound);
                     per_board_flags |= (1 << MoveFlagsConstants::kCaptureFound);
@@ -231,7 +231,7 @@ static inline void TryDiagonal(
                     move_t mv                = EncodeMove(figure_idx, jump_idx);
                     out_moves[out_num_moves] = mv;
                     out_capture_mask |= (1 << out_num_moves);
-                    hasCapturedSoFar = true;
+                    has_captured_so_far = true;
                     out_num_moves++;
                     per_board_flags |= (1 << MoveFlagsConstants::kMoveFound);
                     per_board_flags |= (1 << MoveFlagsConstants::kCaptureFound);
@@ -242,7 +242,7 @@ static inline void TryDiagonal(
                     move_t mv                = EncodeMove(figure_idx, jump_idx);
                     out_moves[out_num_moves] = mv;
                     out_capture_mask |= (1 << out_num_moves);
-                    hasCapturedSoFar = true;
+                    has_captured_so_far = true;
                     out_num_moves++;
                     per_board_flags |= (1 << MoveFlagsConstants::kMoveFound);
                     per_board_flags |= (1 << MoveFlagsConstants::kCaptureFound);

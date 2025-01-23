@@ -2,6 +2,8 @@
 #include <chrono>
 #include <cmath>
 #include "common/checkers_defines.hpp"
+#include "cpu/apply_move.hpp"
+#include "cpu/launchers.hpp"
 
 namespace checkers::mcts
 {
@@ -105,13 +107,28 @@ MonteCarloTreeNode *MonteCarloTree::SelectNode()
     return current;
 }
 
-std::vector<MonteCarloTreeNode *> MonteCarloTree::ExpandNode(const MonteCarloTreeNode *node)
+std::vector<MonteCarloTreeNode *> MonteCarloTree::ExpandNode(MonteCarloTreeNode *node)
 {
-    assert(true && "Not implemented");
-    return {};
+    using namespace checkers::cpu::launchers;
+    using namespace checkers::cpu::apply_move;
+    std::vector<MoveGenResult> mg = cpu::launchers::HostGenerateMoves({node->board_}, node->turn_);
+
+    std::vector<MonteCarloTreeNode *> expanded_nodes;
+    for (u32 i = 0; i < BoardConstants::kBoardSize; i++) {
+        if (mg[0].h_move_counts[i] == 0) {
+            continue;
+        }
+        for (u32 j = 0; j < mg[0].h_move_counts[i]; j++) {
+            move_t move     = mg[0].h_moves[i * kNumMaxMovesPerPiece + j];
+            Board new_board = node->board_;
+            checkers::cpu::apply_move::ApplyMoveOnSingleBoard(move, new_board.white, new_board.black, new_board.kings);
+            expanded_nodes.push_back(new MonteCarloTreeNode(new_board, node));
+        }
+    }
+    return expanded_nodes;
 }
 
-std::vector<SimulationResult> MonteCarloTree::SimulateNodes(const std::vector<MonteCarloTreeNode *> nodes)
+std::vector<SimulationResult> MonteCarloTree::SimulateNodes(std::vector<MonteCarloTreeNode *> nodes)
 {
     assert(true && "Not implemented");
     return {};

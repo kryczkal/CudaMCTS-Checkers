@@ -213,7 +213,7 @@ class WinRatioTest : public ::testing::Test
             param.black         = board.black;
             param.king          = board.kings;
             param.start_turn    = turn;
-            param.n_simulations = 10;  // 10 simulations per board
+            param.n_simulations = 100;
             params.push_back(param);
 
             // Alternate turns

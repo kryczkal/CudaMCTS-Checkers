@@ -44,8 +44,8 @@ class MonteCarloTree
     ///////////////////// Main Monte Carlo Tree Search steps /////////////////////////
 
     MonteCarloTreeNode *SelectNode();
-    std::vector<MonteCarloTreeNode *> ExpandNode(const MonteCarloTreeNode *node);
-    std::vector<SimulationResult> SimulateNodes(const std::vector<MonteCarloTreeNode *> nodes);
+    std::vector<MonteCarloTreeNode *> ExpandNode(MonteCarloTreeNode *node);
+    std::vector<SimulationResult> SimulateNodes(std::vector<MonteCarloTreeNode *> nodes);
     void BackPropagate(std::vector<MonteCarloTreeNode *> nodes, const std::vector<SimulationResult> results);
 
     //////////////////////////////////////////////////////////////////////////////////
