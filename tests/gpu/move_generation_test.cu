@@ -12,12 +12,12 @@ namespace checkers::gpu::launchers
 // A helper to see if a global capture/move was flagged
 static bool GlobalCaptureFound(const MoveGenResult &result)
 {
-    return ((result.h_per_board_flags[0] >> move_gen::MoveFlagsConstants::kCaptureFound) & 1) == 1;
+    return ((result.h_per_board_flags[0] >> MoveFlagsConstants::kCaptureFound) & 1) == 1;
 }
 
 static bool GlobalMoveFound(const MoveGenResult &result)
 {
-    return ((result.h_per_board_flags[0] >> move_gen::MoveFlagsConstants::kMoveFound) & 1) == 1;
+    return ((result.h_per_board_flags[0] >> MoveFlagsConstants::kMoveFound) & 1) == 1;
 }
 
 /**
@@ -25,8 +25,7 @@ static bool GlobalMoveFound(const MoveGenResult &result)
  *        The 'expected' map has move_t as keys and bool as the "isCapture" flag.
  */
 static bool FoundAllExpectedMoves(
-    const checkers::gpu::launchers::MoveGenResult &r, const std::unordered_map<checkers::move_t, bool> &expected_moves,
-    size_t square_index
+    const MoveGenResult &r, const std::unordered_map<checkers::move_t, bool> &expected_moves, size_t square_index
 )
 {
     const size_t offset   = square_index * MoveGenResult::kMovesPerPiece;

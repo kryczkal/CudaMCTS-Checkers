@@ -25,7 +25,7 @@ TEST(GpuMoveSelectionTest, SingleBoardSingleMove)
 {
     // If there's only one available move, that should always be selected
     const size_t kTotalSquares  = BoardConstants::kBoardSize;
-    const size_t kMovesPerPiece = gpu::move_gen::kNumMaxMovesPerPiece;
+    const size_t kMovesPerPiece = kNumMaxMovesPerPiece;
 
     // Board with a single piece
     GpuBoard board;
@@ -66,7 +66,7 @@ TEST(GpuMoveSelectionTest, SingleBoardMultipleMoves)
     // We test random selection logic by using different seeds
     // that index into the same array of possible moves.
     const size_t totalSquares  = BoardConstants::kBoardSize;
-    const size_t movesPerPiece = gpu::move_gen::kNumMaxMovesPerPiece;
+    const size_t movesPerPiece = kNumMaxMovesPerPiece;
 
     GpuBoard board;
     board.white = (1u << 12);
@@ -127,7 +127,7 @@ TEST(GpuMoveSelectionTest, SingleBoardMultipleMoves)
 TEST(GpuMoveSelectionTest, CaptureMoveIsSelectedOverNonCaptureMove)
 {
     const size_t kTotalSquares  = BoardConstants::kBoardSize;
-    const size_t kMovesPerPiece = gpu::move_gen::kNumMaxMovesPerPiece;
+    const size_t kMovesPerPiece = kNumMaxMovesPerPiece;
 
     GpuBoard board;
     board.setPieceAt(12, 'W');  // White piece
@@ -150,7 +150,7 @@ TEST(GpuMoveSelectionTest, CaptureMoveIsSelectedOverNonCaptureMove)
 
     // per_board_flags: 1 board
     std::vector<move_flags_t> perBoardFlags(1, 0);
-    perBoardFlags[0] |= (1 << move_gen::MoveFlagsConstants::kCaptureFound);  // Set capture flag
+    perBoardFlags[0] |= (1 << MoveFlagsConstants::kCaptureFound);  // Set capture flag
 
     // seeds: 1 board
     std::vector<u8> seeds(1, (u8)2554234);
@@ -165,7 +165,7 @@ TEST(GpuMoveSelectionTest, OnlyCaptureMovesAreSelectedWhenMultipleCapturesAvaila
 {
     // Define constants
     const size_t kTotalSquares  = BoardConstants::kBoardSize;
-    const size_t kMovesPerPiece = gpu::move_gen::kNumMaxMovesPerPiece;
+    const size_t kMovesPerPiece = kNumMaxMovesPerPiece;
 
     // Setup a board with two white pieces that can perform captures
     GpuBoard board;
@@ -200,7 +200,7 @@ TEST(GpuMoveSelectionTest, OnlyCaptureMovesAreSelectedWhenMultipleCapturesAvaila
 
     // per_board_flags: 1 board
     std::vector<move_flags_t> perBoardFlags(1, 0);
-    perBoardFlags[0] |= (1 << move_gen::MoveFlagsConstants::kCaptureFound);  // Set capture flag
+    perBoardFlags[0] |= (1 << MoveFlagsConstants::kCaptureFound);  // Set capture flag
 
     std::vector<u8> seeds(1, (u8)2554234);
 

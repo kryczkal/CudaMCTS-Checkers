@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 #include <cmath>
+#include "cpu/launchers.hpp"
 #include "cuda/game_simulation.cuh"
 #include "cuda/launchers.cuh"
 
@@ -228,8 +229,11 @@ TEST_F(WinRatioTest, WinRatioWithinExpectedBounds)
 {
     const u8 max_iterations = 150;
 
-    auto outcomes = checkers::gpu::launchers::HostSimulateCheckersGames(params, max_iterations);
-    ASSERT_EQ(outcomes.size(), 100);  // 100 boards
+    auto outcomes     = checkers::gpu::launchers::HostSimulateCheckersGames(params, max_iterations);
+    auto cpu_outcomes = checkers::cpu::launchers::HostSimulateCheckersGames(params, max_iterations);
+
+    ASSERT_EQ(outcomes.size(), 100);      // 100 boards
+    ASSERT_EQ(cpu_outcomes.size(), 100);  // 100 boards
 
     f64 total_score = 0;
     u64 total_games = 0;
@@ -240,9 +244,21 @@ TEST_F(WinRatioTest, WinRatioWithinExpectedBounds)
     }
 
     const f64 win_ratio = (f64)total_score / total_games;
-    std::cout << "Win ratio: " << win_ratio << std::endl;
+    std::cout << "GPU Win ratio: " << win_ratio << std::endl;
 
-    EXPECT_NEAR(win_ratio, 0.47f, 0.05f);  // Around 45% win ratio, accounting for draws
+    f64 cpu_total_score = 0;
+    u64 cpu_total_games = 0;
+
+    for (auto outcome : cpu_outcomes) {
+        cpu_total_score += outcome.score;
+        cpu_total_games += outcome.n_simulations;
+    }
+
+    const f64 cpu_win_ratio = (f64)cpu_total_score / cpu_total_games;
+    std::cout << "CPU Win ratio: " << cpu_win_ratio << std::endl;
+
+    EXPECT_NEAR(win_ratio, 0.47f, 0.05f);      // Around 45% win ratio, accounting for draws
+    EXPECT_NEAR(cpu_win_ratio, 0.47f, 0.05f);  // Around 45% win ratio, accounting for draws
 }
 
 }  // namespace checkers::gpu::launchers

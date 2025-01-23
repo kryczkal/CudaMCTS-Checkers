@@ -6,6 +6,7 @@
 #include <vector>
 
 #include "common/checkers_defines.hpp"
+#include "cpu/board.hpp"
 #include "cuda/cuda_utils.cuh"
 #include "cuda/move_generation.cuh"
 #include "mcts/simulation_results.hpp"
@@ -17,78 +18,7 @@ namespace checkers::gpu::launchers
  * @brief Holds a simple board definition for host usage. We store
  *        bitmasks for white/black pieces, plus king flags.
  */
-struct GpuBoard {
-    board_t white = 0;
-    board_t black = 0;
-    board_t kings = 0;
-
-    bool operator==(const GpuBoard& other) const
-    {
-        return (white == other.white) && (black == other.black) && (kings == other.kings);
-    }
-
-    bool operator!=(const GpuBoard& other) const { return !(*this == other); }
-
-    /**
-     * @brief Helper to set a piece.
-     *        'W' -> white, 'B' -> black, 'K' -> king flag.
-     */
-    void setPieceAt(board_index_t idx, char pieceType)
-    {
-        switch (pieceType) {
-            case 'W':
-                white |= (static_cast<board_t>(1) << idx);
-                break;
-            case 'B':
-                black |= (static_cast<board_t>(1) << idx);
-                break;
-            case 'K':
-                kings |= (static_cast<board_t>(1) << idx);
-                break;
-            default:
-                break;
-        }
-    }
-};
-
-/**
- * @brief Holds simulation parameters for a single board configuration.
- *        We'll do 'n_simulations' random rollouts from that position.
- */
-struct SimulationParam {
-    board_t white;
-    board_t black;
-    board_t king;
-    u8 start_turn;      // 0=White starts, 1=Black starts
-    u64 n_simulations;  // how many times to simulate from this config
-};
-
-/**
- * @brief Holds the result of calling the GPU-based GenerateMoves kernel
- *        for exactly one board.
- */
-struct MoveGenResult {
-    // We track 32 squares, with up to kNumMaxMovesPerPiece = 13 possible moves per piece
-    static constexpr size_t kTotalSquares  = BoardConstants::kBoardSize;
-    static constexpr size_t kMovesPerPiece = checkers::gpu::move_gen::kNumMaxMovesPerPiece;
-
-    // Flattened array of moves: size 32*kMovesPerPiece
-    std::vector<move_t> h_moves;
-    // Number of generated moves per square
-    std::vector<u8> h_move_counts;
-    // For each square, a mask indicating which sub-moves are captures
-    std::vector<move_flags_t> h_capture_masks;
-    // Additional per-board flags (bitwise MoveFlagsConstants)
-    std::vector<move_flags_t> h_per_board_flags;
-
-    MoveGenResult()
-        : h_moves(kTotalSquares * kMovesPerPiece, kInvalidMove),
-          h_move_counts(kTotalSquares, 0),
-          h_capture_masks(kTotalSquares, 0),
-          h_per_board_flags(1, 0)
-    {
-    }
-};
+using GpuBoard = checkers::cpu::Board;
 
 /**
  * @brief This function allocates device memory for a vector of boards,

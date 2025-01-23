@@ -27,7 +27,7 @@ static constexpr u8 kOutcomeNone  = 0;
 // -----------------------------------------------------------------------------
 static constexpr int kNumBoardsPerBlock = 10;
 
-__global__ void SimulateCheckersGamesOneBoardPerBlock(
+__global__ void SimulateCheckersGames(
     const board_t* d_whites,         // [n_simulation_counts]
     const board_t* d_blacks,         // [n_simulation_counts]
     const board_t* turn_black,       // [n_simulation_counts]

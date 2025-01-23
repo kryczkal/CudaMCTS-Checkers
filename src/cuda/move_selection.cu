@@ -12,10 +12,8 @@ __device__ move_t SelectRandomMoveForSingleBoard(
     const u8* move_counts, const move_flags_t* capture_masks, const move_flags_t per_board_flags, u8& seed
 )
 {
-    using gpu::move_gen::kNumMaxMovesPerPiece;
-
     // Detect if the board has a capture flagged
-    const bool capture_required = ReadFlag(per_board_flags, move_gen::MoveFlagsConstants::kCaptureFound);
+    const bool capture_required = ReadFlag(per_board_flags, MoveFlagsConstants::kCaptureFound);
 
     move_t chosen_move = kInvalidMove;
 
@@ -93,8 +91,6 @@ __global__ void SelectBestMoves(
     const u64 n_boards, u8* d_seeds, move_t* d_best_moves
 )
 {
-    using gpu::move_gen::kNumMaxMovesPerPiece;
-
     // Each thread handles exactly one board
     u64 idx = blockIdx.x * blockDim.x + threadIdx.x;
     while (idx < n_boards) {

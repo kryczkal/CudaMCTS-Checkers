@@ -11,7 +11,7 @@ namespace checkers::gpu
 // This kernel simulates multiple checkers games. Each block processes kNumBoardsPerBlock boards.
 // We store data in shared memory so each block can handle multiple boards in parallel.
 // We rely on the "OnSingleBoard" device functions for generating moves, selecting a move, and applying it.
-__global__ void SimulateCheckersGamesOneBoardPerBlock(
+__global__ void SimulateCheckersGames(
     const board_t* d_whites,         // [n_simulation_counts]
     const board_t* d_blacks,         // [n_simulation_counts]
     const board_t* d_kings,          // [n_simulation_counts]
@@ -84,7 +84,6 @@ __global__ void SimulateCheckersGamesOneBoardPerBlock(
     // s_moveCounts: 32 counters
     // s_captureMasks: 32 flags
     // s_perBoardFlags: 1 per board
-    static constexpr int kNumMaxMovesPerPiece = checkers::gpu::move_gen::kNumMaxMovesPerPiece;
     __shared__ move_t s_moves[kNumBoardsPerBlock][BoardConstants::kBoardSize * kNumMaxMovesPerPiece];
     __shared__ u8 s_move_counts[kNumBoardsPerBlock][BoardConstants::kBoardSize];
     __shared__ move_flags_t s_capture_masks[kNumBoardsPerBlock][BoardConstants::kBoardSize];
@@ -162,7 +161,7 @@ __global__ void SimulateCheckersGamesOneBoardPerBlock(
             const bool turnBlack = s_current_turn[kLocalBoardIndex];
 
             if (IsCurrentSidePiece(w, b, turnBlack, kLocalThreadInBoardIndex)) {
-                using checkers::gpu::move_gen::GenerateMovesForSinglePiece;
+                using move_gen::GenerateMovesForSinglePiece;
                 if (!turnBlack) {
                     // White
                     GenerateMovesForSinglePiece<Turn::kWhite>(
@@ -224,8 +223,7 @@ __global__ void SimulateCheckersGamesOneBoardPerBlock(
                 mv, s_whites[kLocalBoardIndex], s_blacks[kLocalBoardIndex], s_kings[kLocalBoardIndex]
             );
             // Save the from-square for chaining
-            s_chain_from[kLocalBoardIndex] =
-                checkers::gpu::move_gen::DecodeMove<checkers::gpu::move_gen::MovePart::To>(mv);
+            s_chain_from[kLocalBoardIndex] = move_gen::DecodeMove<move_gen::MovePart::To>(mv);
         }
         __syncthreads();
 
@@ -253,14 +251,14 @@ __global__ void SimulateCheckersGamesOneBoardPerBlock(
             if ((kLocalThreadInBoardIndex == s_chain_from[kLocalBoardIndex]) &&
                 IsCurrentSidePiece(w, b, turnBlack, kLocalThreadInBoardIndex)) {
                 if (!turnBlack) {
-                    checkers::gpu::move_gen::GenerateMovesForSinglePiece<Turn::kWhite>(
+                    move_gen::GenerateMovesForSinglePiece<Turn::kWhite>(
                         (board_index_t)kLocalThreadInBoardIndex, w, b, k,
                         &s_moves[kLocalBoardIndex][kLocalThreadInBoardIndex * kNumMaxMovesPerPiece],
                         s_move_counts[kLocalBoardIndex][kLocalThreadInBoardIndex],
                         s_capture_masks[kLocalBoardIndex][kLocalThreadInBoardIndex], s_per_board_flags[kLocalBoardIndex]
                     );
                 } else {
-                    checkers::gpu::move_gen::GenerateMovesForSinglePiece<Turn::kBlack>(
+                    move_gen::GenerateMovesForSinglePiece<Turn::kBlack>(
                         (board_index_t)kLocalThreadInBoardIndex, w, b, k,
                         &s_moves[kLocalBoardIndex][kLocalThreadInBoardIndex * kNumMaxMovesPerPiece],
                         s_move_counts[kLocalBoardIndex][kLocalThreadInBoardIndex],
@@ -271,9 +269,7 @@ __global__ void SimulateCheckersGamesOneBoardPerBlock(
             __syncthreads();
 
             // If captures exist, set the flag
-            if (checkers::gpu::ReadFlag(
-                    s_per_board_flags[kLocalBoardIndex], checkers::gpu::move_gen::MoveFlagsConstants::kCaptureFound
-                )) {
+            if (checkers::gpu::ReadFlag(s_per_board_flags[kLocalBoardIndex], MoveFlagsConstants::kCaptureFound)) {
                 s_has_capture[kLocalBoardIndex] = true;
             }
             __syncthreads();
@@ -301,8 +297,7 @@ __global__ void SimulateCheckersGamesOneBoardPerBlock(
                     checkers::gpu::apply_move::ApplyMoveOnSingleBoard(
                         chainMv, s_whites[kLocalBoardIndex], s_blacks[kLocalBoardIndex], s_kings[kLocalBoardIndex]
                     );
-                    s_chain_from[kLocalBoardIndex] =
-                        checkers::gpu::move_gen::DecodeMove<checkers::gpu::move_gen::MovePart::To>(chainMv);
+                    s_chain_from[kLocalBoardIndex] = move_gen::DecodeMove<move_gen::MovePart::To>(chainMv);
                 }
             }
             __syncthreads();
@@ -321,13 +316,10 @@ __global__ void SimulateCheckersGamesOneBoardPerBlock(
 
         // 6.h) 40-move rule or non-reversible logic
         if (kLocalThreadInBoardIndex == 0) {
-            const bool was_capture = checkers::gpu::ReadFlag(
-                s_per_board_flags[kLocalBoardIndex], checkers::gpu::move_gen::MoveFlagsConstants::kCaptureFound
-            );
+            const bool was_capture =
+                checkers::gpu::ReadFlag(s_per_board_flags[kLocalBoardIndex], MoveFlagsConstants::kCaptureFound);
 
-            board_index_t from_sq = checkers::gpu::move_gen::DecodeMove<checkers::gpu::move_gen::MovePart::From>(
-                s_chosen_move[kLocalBoardIndex]
-            );
+            board_index_t from_sq    = move_gen::DecodeMove<move_gen::MovePart::From>(s_chosen_move[kLocalBoardIndex]);
             const bool from_was_king = ReadFlag(s_kings[kLocalBoardIndex], from_sq);
 
             if (!was_capture && from_was_king) {

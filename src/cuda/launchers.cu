@@ -23,7 +23,7 @@ namespace checkers::gpu::launchers
 std::vector<MoveGenResult> HostGenerateMoves(const std::vector<GpuBoard>& boards, Turn turn)
 {
     using namespace checkers;
-    using namespace checkers::gpu::move_gen;
+    using namespace move_gen;
 
     const size_t n_boards = boards.size();
     std::vector<MoveGenResult> results(n_boards);
@@ -34,7 +34,7 @@ std::vector<MoveGenResult> HostGenerateMoves(const std::vector<GpuBoard>& boards
     }
 
     //--------------------------------------------------------------------------
-    // 1) Prepare host-side arrays for white, black, kings
+    // Prepare host-side arrays for white, black, kings
     //--------------------------------------------------------------------------
     std::vector<board_t> host_whites(n_boards), host_blacks(n_boards), host_kings(n_boards);
 
@@ -45,7 +45,7 @@ std::vector<MoveGenResult> HostGenerateMoves(const std::vector<GpuBoard>& boards
     }
 
     //--------------------------------------------------------------------------
-    // 2) Allocate device memory
+    // Allocate device memory
     //--------------------------------------------------------------------------
     board_t* d_whites = nullptr;
     board_t* d_blacks = nullptr;
@@ -56,14 +56,14 @@ std::vector<MoveGenResult> HostGenerateMoves(const std::vector<GpuBoard>& boards
     CHECK_CUDA_ERROR(cudaMalloc(&d_kings, n_boards * sizeof(board_t)));
 
     //--------------------------------------------------------------------------
-    // 3) Copy host boards to device
+    // Copy host boards to device
     //--------------------------------------------------------------------------
     CHECK_CUDA_ERROR(cudaMemcpy(d_whites, host_whites.data(), n_boards * sizeof(board_t), cudaMemcpyHostToDevice));
     CHECK_CUDA_ERROR(cudaMemcpy(d_blacks, host_blacks.data(), n_boards * sizeof(board_t), cudaMemcpyHostToDevice));
     CHECK_CUDA_ERROR(cudaMemcpy(d_kings, host_kings.data(), n_boards * sizeof(board_t), cudaMemcpyHostToDevice));
 
     //--------------------------------------------------------------------------
-    // 4) Allocate device memory for results
+    // Allocate device memory for results
     //--------------------------------------------------------------------------
     const size_t kTotalSquares       = MoveGenResult::kTotalSquares;
     const size_t kMovesPerPiece      = MoveGenResult::kMovesPerPiece;
@@ -81,7 +81,7 @@ std::vector<MoveGenResult> HostGenerateMoves(const std::vector<GpuBoard>& boards
     CHECK_CUDA_ERROR(cudaMalloc(&d_per_board_flags, n_boards * sizeof(move_flags_t)));
 
     //--------------------------------------------------------------------------
-    // 5) Initialize device buffers
+    // Initialize device buffers
     //--------------------------------------------------------------------------
     {
         // Moves to invalid
@@ -108,7 +108,7 @@ std::vector<MoveGenResult> HostGenerateMoves(const std::vector<GpuBoard>& boards
     }
 
     //--------------------------------------------------------------------------
-    // 6) Launch the device kernel
+    // Launch the device kernel
     //--------------------------------------------------------------------------
     // Each board needs 32 threads (1 thread per board square).
     // We'll pick a block size and number of blocks accordingly.
@@ -134,7 +134,7 @@ std::vector<MoveGenResult> HostGenerateMoves(const std::vector<GpuBoard>& boards
     CHECK_CUDA_ERROR(cudaDeviceSynchronize());
 
     //--------------------------------------------------------------------------
-    // 7) Copy results back to host
+    // Copy results back to host
     //--------------------------------------------------------------------------
     std::vector<move_t> host_moves(kTotalMoves);
     std::vector<u8> host_move_counts(n_boards * kTotalSquares);
@@ -154,7 +154,7 @@ std::vector<MoveGenResult> HostGenerateMoves(const std::vector<GpuBoard>& boards
     );
 
     //--------------------------------------------------------------------------
-    // 8) Populate results
+    // Populate results
     //--------------------------------------------------------------------------
     for (size_t i = 0; i < n_boards; ++i) {
         // Each board's chunk of moves
@@ -181,7 +181,7 @@ std::vector<MoveGenResult> HostGenerateMoves(const std::vector<GpuBoard>& boards
     }
 
     //--------------------------------------------------------------------------
-    // 9) Free device resources
+    // Free device resources
     //--------------------------------------------------------------------------
     CHECK_CUDA_ERROR(cudaFree(d_whites));
     CHECK_CUDA_ERROR(cudaFree(d_blacks));
@@ -303,7 +303,7 @@ std::vector<move_t> HostSelectBestMoves(
 
     // Basic size checks (could be expanded with error handling)
     const size_t totalSquares       = BoardConstants::kBoardSize;
-    const size_t movesPerPiece      = gpu::move_gen::kNumMaxMovesPerPiece;
+    const size_t movesPerPiece      = kNumMaxMovesPerPiece;
     const size_t totalMovesPerBoard = totalSquares * movesPerPiece;
     if (moves.size() != n_boards * totalMovesPerBoard) {
         // Potentially handle or throw an error. For now, assume correct input.
@@ -483,7 +483,7 @@ std::vector<SimulationResult> HostSimulateCheckersGames(const std::vector<Simula
     const u64 totalThreads    = n_total_simulations * BoardConstants::kBoardSize;
     const int blocks          = static_cast<int>((totalThreads + threadsPerBlock - 1) / threadsPerBlock);
 
-    SimulateCheckersGamesOneBoardPerBlock<<<blocks, threadsPerBlock>>>(
+    SimulateCheckersGames<<<blocks, threadsPerBlock>>>(
         d_whites, d_blacks, d_kings, d_startTurns, d_simCounts, n_simulation_counts,
         d_scores,  // each simulation’s 0/1/2 outcome
         d_seeds, max_iterations, n_total_simulations

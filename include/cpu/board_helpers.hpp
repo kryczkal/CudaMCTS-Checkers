@@ -46,7 +46,7 @@ constexpr board_index_t DecodeMove(const move_t move)
 constexpr u8 IsOnEdge(board_index_t index)
 {
     // This specialization checks the entire edge mask
-    return static_cast<u8>((gpu::BoardConstants::kEdgeMask >> index) & 1U);
+    return static_cast<u8>((BoardConstants::kEdgeMask >> index) & 1U);
 }
 
 /**
@@ -58,19 +58,19 @@ constexpr u8 IsOnEdge(board_index_t index)
 {
     if constexpr (direction == Direction::kUpLeft) {
         // top or left edges
-        constexpr board_t kMask = gpu::BoardConstants::kTopBoardEdgeMask | gpu::BoardConstants::kLeftBoardEdgeMask;
+        constexpr board_t kMask = BoardConstants::kTopBoardEdgeMask | BoardConstants::kLeftBoardEdgeMask;
         return static_cast<u8>((kMask >> index) & 1U);
     } else if constexpr (direction == Direction::kUpRight) {
         // top or right edges
-        constexpr board_t kMask = gpu::BoardConstants::kTopBoardEdgeMask | gpu::BoardConstants::kRightBoardEdgeMask;
+        constexpr board_t kMask = BoardConstants::kTopBoardEdgeMask | BoardConstants::kRightBoardEdgeMask;
         return static_cast<u8>((kMask >> index) & 1U);
     } else if constexpr (direction == Direction::kDownLeft) {
         // bottom or left edges
-        constexpr board_t kMask = gpu::BoardConstants::kBottomBoardEdgeMask | gpu::BoardConstants::kLeftBoardEdgeMask;
+        constexpr board_t kMask = BoardConstants::kBottomBoardEdgeMask | BoardConstants::kLeftBoardEdgeMask;
         return static_cast<u8>((kMask >> index) & 1U);
     } else {  // Direction::kDownRight
         // bottom or right edges
-        constexpr board_t kMask = gpu::BoardConstants::kBottomBoardEdgeMask | gpu::BoardConstants::kRightBoardEdgeMask;
+        constexpr board_t kMask = BoardConstants::kBottomBoardEdgeMask | BoardConstants::kRightBoardEdgeMask;
         return static_cast<u8>((kMask >> index) & 1U);
     }
 }
@@ -84,9 +84,8 @@ constexpr RowParity GetRowParity(board_index_t index)
     //    assert(index < BoardConstants::kBoardSize);
 
     // TODO: Validate in assembly that this modulo is optmized to & with a bitmask
-    return (index % (2 * gpu::BoardConstants::kBoardEdgeLength)) >= gpu::BoardConstants::kBoardEdgeLength
-               ? RowParity::kOdd
-               : RowParity::kEven;
+    return (index % (2 * BoardConstants::kBoardEdgeLength)) >= BoardConstants::kBoardEdgeLength ? RowParity::kOdd
+                                                                                                : RowParity::kEven;
 }
 
 template <Direction direction>
@@ -94,13 +93,13 @@ constexpr board_index_t GetAdjacentIndex(board_index_t index)
 {
     switch (direction) {
         case Direction::kUpLeft:
-            return index - gpu::BoardConstants::kBoardEdgeLength + GetParityOffset(GetRowParity(index));
+            return index - BoardConstants::kBoardEdgeLength + GetParityOffset(GetRowParity(index));
         case Direction::kUpRight:
-            return index - gpu::BoardConstants::kBoardEdgeLength + GetParityOffset(GetRowParity(index)) + 1;
+            return index - BoardConstants::kBoardEdgeLength + GetParityOffset(GetRowParity(index)) + 1;
         case Direction::kDownLeft:
-            return index + gpu::BoardConstants::kBoardEdgeLength + GetParityOffset(GetRowParity(index));
+            return index + BoardConstants::kBoardEdgeLength + GetParityOffset(GetRowParity(index));
         case Direction::kDownRight:
-            return index + gpu::BoardConstants::kBoardEdgeLength + GetParityOffset(GetRowParity(index)) + 1;
+            return index + BoardConstants::kBoardEdgeLength + GetParityOffset(GetRowParity(index)) + 1;
         default:
             assert(false);
             return (board_index_t)~0;

@@ -2,6 +2,9 @@
 #define MCTS_CHECKERS_INCLUDE_COMMON_CHECKERS_DEFINES_HPP_
 
 #include "types.hpp"
+#include "vector"
+
+#define UNUSED(x) (void)(x)
 
 namespace checkers
 {
@@ -17,9 +20,6 @@ using move_flags_t  = u16;
 static constexpr move_t kInvalidMove = 0xFFFF;
 
 ///////////////////////////////// Constants //////////////////////////////////
-
-namespace gpu
-{
 
 class BoardConstants
 {
@@ -63,8 +63,6 @@ class BoardConstants
         kLeftBoardEdgeMask | kRightBoardEdgeMask | kTopBoardEdgeMask | kBottomBoardEdgeMask;
 };
 
-namespace move_gen
-{
 static constexpr u8 kNumMaxMovesPerPiece = 13;
 
 class MoveFlagsConstants
@@ -73,8 +71,45 @@ class MoveFlagsConstants
     static constexpr u8 kMoveFound    = 0;
     static constexpr u8 kCaptureFound = 1;
 };
-}  // namespace move_gen
-}  // namespace gpu
+
+/**
+ * @brief Holds simulation parameters for a single board configuration.
+ *        We'll do 'n_simulations' random rollouts from that position.
+ */
+struct SimulationParam {
+    board_t white;
+    board_t black;
+    board_t king;
+    u8 start_turn;      // 0=White starts, 1=Black starts
+    u64 n_simulations;  // how many times to simulate from this config
+};
+
+/**
+ * @brief Holds the result of calling the GPU-based GenerateMoves kernel
+ *        for exactly one board.
+ */
+struct MoveGenResult {
+    // We track 32 squares, with up to kNumMaxMovesPerPiece = 13 possible moves per piece
+    static constexpr size_t kTotalSquares  = BoardConstants::kBoardSize;
+    static constexpr size_t kMovesPerPiece = kNumMaxMovesPerPiece;
+
+    // Flattened array of moves: size 32*kMovesPerPiece
+    std::vector<move_t> h_moves;
+    // Number of generated moves per square
+    std::vector<u8> h_move_counts;
+    // For each square, a mask indicating which sub-moves are captures
+    std::vector<move_flags_t> h_capture_masks;
+    // Additional per-board flags (bitwise MoveFlagsConstants)
+    std::vector<move_flags_t> h_per_board_flags;
+
+    MoveGenResult()
+        : h_moves(kTotalSquares * kMovesPerPiece, kInvalidMove),
+          h_move_counts(kTotalSquares, 0),
+          h_capture_masks(kTotalSquares, 0),
+          h_per_board_flags(1, 0)
+    {
+    }
+};
 
 }  // namespace checkers
 
