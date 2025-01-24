@@ -36,7 +36,7 @@ int main()
 
     // Set time limits
     game.SetHumanTimeLimit(120.0f);  // 60 seconds for human
-    game.SetAiTimeLimit(4.0f);       // 3 seconds for AI
+    game.SetAiTimeLimit(4.0f);
 
     // Attach CLI GUI
     auto gui = std::make_shared<checkers::CliGui>();

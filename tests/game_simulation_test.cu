@@ -185,14 +185,15 @@ TYPED_TEST(SimulationTest, ImmediateWinWhite)
  * Recreates the immediate-black-loss scenario:
  *   Black to move, but has no pieces => White automatically wins.
  */
-TYPED_TEST(SimulationTest, ImmediateLossBlack)
+TYPED_TEST(SimulationTest, ImmediateWinBlack)
 {
     using ImplType = TypeParam;
 
     checkers::SimulationParam param{};
     // White piece at 0
-    param.white |= (1u << 0);
-    param.black = 0;
+    param.black |= (1u << 5);
+    param.black |= (1u << 5);
+    param.white |= (1u << 9);
     // black has no pieces
     param.start_turn    = 1;  // black to move
     param.n_simulations = 100;
@@ -204,7 +205,7 @@ TYPED_TEST(SimulationTest, ImmediateLossBlack)
     ASSERT_EQ(results.size(), 1u);
 
     double fraction_black_wins = results[0].score / results[0].n_simulations;
-    EXPECT_NEAR(fraction_black_wins, 0.0, 0.1);
+    EXPECT_NEAR(fraction_black_wins, 1.0, 0.1);
 }
 
 /**
@@ -293,5 +294,26 @@ TYPED_TEST(SimulationTest, WinRatioWithinExpectedBounds)
     std::cout << "[SimulationTest] fractionWhiteWins = " << fractionWhiteWins << std::endl;
 
     // Typically near ~0.45-0.55 in random playouts
-    EXPECT_NEAR(fractionWhiteWins, 0.47, 0.05);
+    EXPECT_NEAR(fractionWhiteWins, 0.50, 0.05);
+}
+
+TYPED_TEST(SimulationTest, NonZeroScore1)
+{
+    using ImplType = TypeParam;
+    std::vector<checkers::SimulationParam> params;
+    params.reserve(1);
+    params.push_back(checkers::SimulationParam{});
+    params[0].white         = 4292874240;
+    params[0].black         = 19455;
+    params[0].king          = 0;
+    params[0].start_turn    = 1;
+    params[0].n_simulations = 12500;
+    int max_iterations      = 150;
+    auto outcomes           = ImplType::SimulateCheckersGames(params, max_iterations);
+
+    ASSERT_EQ(outcomes.size(), 1u);
+    ASSERT_NE(outcomes[0].score, 0);
+
+    std::cout << "[SimulationTest:NonZeroScore1] win ratio = " << outcomes[0].score / outcomes[0].n_simulations
+              << std::endl;
 }

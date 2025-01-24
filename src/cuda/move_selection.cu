@@ -56,7 +56,7 @@ __device__ move_t SelectRandomMoveForSingleBoard(
             chosen_move             = moves[candidate_square * kNumMaxMovesPerPiece + sub_move_index];
 
             // Update the seed
-            seed = static_cast<u8>(seed + 13);
+            SimpleRand(seed);
 
             break;
         } else {
@@ -65,7 +65,7 @@ __device__ move_t SelectRandomMoveForSingleBoard(
             chosen_move             = moves[candidate_square * kNumMaxMovesPerPiece + chosen_sub_idx];
 
             // Update the seed
-            seed = static_cast<u8>(seed + 13);
+            SimpleRand(seed);
 
             break;
         }

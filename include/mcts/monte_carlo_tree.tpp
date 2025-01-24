@@ -11,12 +11,17 @@ move_t MonteCarloTree::SelectBestMove(const MonteCarloTreeNode *node)
 {
     assert(node != nullptr);
 
-    move_t best_move = (node->children_.begin()->first);
     if (node->children_.empty()) {
-        return best_move;
+        // Handle the case where there are no children.
+        // This could indicate a terminal node. Return an invalid move or handle accordingly.
+        std::cerr << "SelectBestMove called on a node with no children." << std::endl;
+        return kInvalidMove;
     }
+    // Initialize best_move and best_score with the first child.
+    auto first_child    = node->children_.begin();
+    move_t best_move    = first_child->first;
+    EvalType best_score = EvalFunc(first_child->second);
 
-    EvalType best_score = EvalFunc(node->children_.begin()->second);
     for (auto &child : node->children_) {
         EvalType score = EvalFunc(child.second);
 
@@ -25,6 +30,7 @@ move_t MonteCarloTree::SelectBestMove(const MonteCarloTreeNode *node)
             best_move  = child.first;
         }
     }
+
     assert(best_move != kInvalidMove);
     std::cout << "Best score: " << best_score << std::endl;
     return best_move;

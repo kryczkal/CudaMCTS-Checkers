@@ -47,13 +47,13 @@ move_t SelectRandomMoveForSingleBoard(
             // pick one capturing sub-move
             u8 chosen_sub = seed % capturingCount;
             chosen_move   = moves[sq * kNumMaxMovesPerPiece + capturing_indices[chosen_sub]];
-            seed += 13;  // shift seed
+            SimpleRand(seed);
             break;
         } else {
             // no capture forced => pick any sub-move
             u8 chosen_sub = seed % count;
             chosen_move   = moves[sq * kNumMaxMovesPerPiece + chosen_sub];
-            seed += 13;
+            SimpleRand(seed);
             break;
         }
     }

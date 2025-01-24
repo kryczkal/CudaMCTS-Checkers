@@ -7,6 +7,12 @@
 namespace checkers::gpu
 {
 
+static __device__ __forceinline__ void SimpleRand(u8& state)
+{
+    state = state * 1664525u + 1013904223u;  // LCG formula
+    state = state & 0xFF;                    // Ensure it stays in the u8 range}
+}
+
 template <typename UnsignedFlagType>
 __device__ __forceinline__ constexpr u8 ReadFlag(const UnsignedFlagType flags, const u8 index)
 {

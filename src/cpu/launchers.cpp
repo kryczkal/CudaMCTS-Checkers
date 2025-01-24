@@ -11,6 +11,7 @@
 
 namespace checkers::cpu::launchers
 {
+
 std::vector<MoveGenResult> HostGenerateMoves(const std::vector<Board> &boards, Turn turn)
 {
     using namespace checkers::cpu::move_gen;
@@ -121,7 +122,7 @@ std::vector<SimulationResult> HostSimulateCheckersGames(const std::vector<Simula
 
     std::vector<u8> seeds(total_sims);
     {
-        std::mt19937 rng((unsigned)std::time(nullptr));
+        std::mt19937 rng(kTrueRandom ? std::random_device{}() : kSeed);
         for (u64 i = 0; i < total_sims; i++) {
             seeds[i] = static_cast<u8>(rng() & 0xFF);
         }
@@ -260,7 +261,8 @@ std::vector<SimulationResult> HostSimulateCheckersGames(const std::vector<Simula
                     apply_move::ApplyMoveOnSingleBoard(chain_move, white_board, black_board, king_board);
                 }
 
-                bool from_was_king = ReadFlag(king_board, to_sq);
+                board_index_t from_sq = move_gen::DecodeMove<move_gen::MovePart::From>(chosen_move);
+                bool from_was_king    = ReadFlag(king_board, from_sq);
 
                 // Promotion
                 king_board |= (white_board & BoardConstants::kTopBoardEdgeMask);

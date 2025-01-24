@@ -10,7 +10,7 @@
 
 namespace checkers::mcts
 {
-static constexpr u64 kMaxTotalSimulations = 1e5;
+static constexpr u64 kMaxTotalSimulations = 1e4;
 static constexpr u64 kSimulationMaxDepth  = 200;
 static constexpr f32 kExplorationConstant = 1.41f;
 class MonteCarloTreeNode;
@@ -54,6 +54,7 @@ class MonteCarloTree
 
     template <MaxComparable EvalType, EvalFunction<EvalType> auto EvalFunc>
     move_t SelectBestMove(const MonteCarloTreeNode *node);
+    f64 GetScoreFromPerspectiveOfRoot(const MonteCarloTreeNode *node, const SimulationResult &result);
 
     static f32 WinRate(const MonteCarloTreeNode *node);
 

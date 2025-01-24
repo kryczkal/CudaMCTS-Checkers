@@ -423,7 +423,7 @@ std::vector<SimulationResult> HostSimulateCheckersGames(const std::vector<Simula
     // Generate random seeds for each of the total simulations
     std::vector<u8> h_seeds(n_total_simulations);
     {
-        std::mt19937 rng((unsigned)time(nullptr));
+        std::mt19937 rng(kTrueRandom ? std::random_device{}() : kSeed);
         for (u64 i = 0; i < n_total_simulations; i++) {
             h_seeds[i] = static_cast<u8>(rng() & 0xFF);
         }

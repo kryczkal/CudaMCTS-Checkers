@@ -8,6 +8,9 @@
 
 namespace checkers
 {
+static constexpr bool kTrueRandom = false;
+static constexpr u32 kSeed        = 0x12345678;
+
 /////////////////////////////////// Types ////////////////////////////////////
 
 enum class Turn { kWhite, kBlack };

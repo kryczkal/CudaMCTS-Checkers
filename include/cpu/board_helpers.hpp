@@ -7,6 +7,12 @@
 namespace checkers::cpu
 {
 
+static void SimpleRand(u8& state)
+{
+    state = state * 1664525u + 1013904223u;  // LCG formula
+    state = state & 0xFF;                    // Ensure it stays in the u8 range}
+}
+
 template <typename UnsignedFlagType>
 constexpr u8 ReadFlag(const UnsignedFlagType flags, const u8 index)
 {
