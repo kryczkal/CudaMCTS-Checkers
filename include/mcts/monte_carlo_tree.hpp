@@ -10,6 +10,8 @@
 
 namespace checkers::mcts
 {
+static constexpr u64 kMaxTotalSimulations = 1e5;
+static constexpr u64 kSimulationMaxDepth  = 200;
 static constexpr f32 kExplorationConstant = 1.41f;
 class MonteCarloTreeNode;
 
@@ -71,7 +73,7 @@ class MonteCarloTreeNode
     //------------------------------------------------------------------------------//
 
     explicit MonteCarloTreeNode(Board board, Turn turn);
-    explicit MonteCarloTreeNode(Board board, MonteCarloTreeNode *parent);
+    explicit MonteCarloTreeNode(Board board, MonteCarloTreeNode *parent, Turn turn);
 
     ~MonteCarloTreeNode();
 

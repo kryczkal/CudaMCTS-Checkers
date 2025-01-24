@@ -26,6 +26,7 @@ move_t MonteCarloTree::SelectBestMove(const MonteCarloTreeNode *node)
         }
     }
     assert(best_move != kInvalidMove);
+    std::cout << "Best score: " << best_score << std::endl;
     return best_move;
 }
 }  // namespace checkers::mcts

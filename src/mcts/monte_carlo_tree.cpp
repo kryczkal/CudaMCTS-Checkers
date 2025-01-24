@@ -3,7 +3,9 @@
 #include <cmath>
 #include "common/checkers_defines.hpp"
 #include "cpu/apply_move.hpp"
+#include "cpu/board_helpers.hpp"
 #include "cpu/launchers.hpp"
+#include "cuda/launchers.cuh"
 
 namespace checkers::mcts
 {
@@ -27,7 +29,7 @@ void MonteCarloTree::DescendTree(const move_t move)
     }
     MonteCarloTreeNode *node_to_delete = root_;
     if (node_to_descend_to == root_->children_.end()) {
-        root_ = new MonteCarloTreeNode(root_->board_, root_);
+        assert(false);  // This should never happen
         return;
     }
     node_to_delete->children_.clear();  // We delete them manually
@@ -91,10 +93,7 @@ MonteCarloTreeNode *MonteCarloTree::SelectNode()
         f32 best_score                 = -1.0f;
         MonteCarloTreeNode *best_child = nullptr;
         for (auto &child : current->children_) {
-            //            if (child.second->visits_ == 0) {
-            //                best_child = child.second;
-            //                break;
-            //            }
+            assert(child.second->visits_ > 0);  // Given the expansion step, this should never happen
             f32 uct_score = child.second->UctScore();
             if (uct_score > best_score) {
                 best_score = uct_score;
@@ -111,18 +110,37 @@ std::vector<MonteCarloTreeNode *> MonteCarloTree::ExpandNode(MonteCarloTreeNode 
 {
     using namespace checkers::cpu::launchers;
     using namespace checkers::cpu::apply_move;
+    assert(node != nullptr);
+
     std::vector<MoveGenResult> mg = cpu::launchers::HostGenerateMoves({node->board_}, node->turn_);
+    const bool capture_required =
+        checkers::cpu::ReadFlag(mg[0].h_per_board_flags[0], MoveFlagsConstants::kCaptureFound);
 
     std::vector<MonteCarloTreeNode *> expanded_nodes;
     for (u32 i = 0; i < BoardConstants::kBoardSize; i++) {
-        if (mg[0].h_move_counts[i] == 0) {
+        const u8 move_count        = mg[0].h_move_counts[i];
+        const bool capture_in_move = mg[0].h_capture_masks[i] != 0;
+
+        if (move_count == 0 || (capture_required && !capture_in_move)) {
             continue;
         }
+
         for (u32 j = 0; j < mg[0].h_move_counts[i]; j++) {
-            move_t move     = mg[0].h_moves[i * kNumMaxMovesPerPiece + j];
-            Board new_board = node->board_;
-            checkers::cpu::apply_move::ApplyMoveOnSingleBoard(move, new_board.white, new_board.black, new_board.kings);
-            expanded_nodes.push_back(new MonteCarloTreeNode(new_board, node));
+            bool is_capture = checkers::cpu::ReadFlag(mg[0].h_capture_masks[i], j);
+            if (capture_required && !is_capture) {
+                continue;
+            }
+            const move_t move             = mg[0].h_moves[i * kNumMaxMovesPerPiece + j];
+            Board board_with_applied_move = node->board_;
+            checkers::cpu::apply_move::ApplyMoveOnSingleBoard(
+                move, board_with_applied_move.white, board_with_applied_move.black, board_with_applied_move.kings
+            );
+            const bool change_turn   = !is_capture;
+            const Turn opposite_turn = node->turn_ == Turn::kWhite ? Turn::kBlack : Turn::kWhite;
+            auto *new_node =
+                new MonteCarloTreeNode(board_with_applied_move, node, change_turn ? opposite_turn : node->turn_);
+            expanded_nodes.push_back(new_node);
+            node->children_[move] = new_node;
         }
     }
     return expanded_nodes;
@@ -130,13 +148,41 @@ std::vector<MonteCarloTreeNode *> MonteCarloTree::ExpandNode(MonteCarloTreeNode 
 
 std::vector<SimulationResult> MonteCarloTree::SimulateNodes(std::vector<MonteCarloTreeNode *> nodes)
 {
-    assert(true && "Not implemented");
-    return {};
+    using namespace checkers::cpu::launchers;
+
+    const u64 kSimulationsPerNode = kMaxTotalSimulations / nodes.size();
+    assert(kSimulationsPerNode > 0);
+    assert(!nodes.empty());
+
+    std::vector<SimulationParam> params;
+    for (auto node : nodes) {
+        params.push_back({
+            .white         = node->board_.white,
+            .black         = node->board_.black,
+            .king          = node->board_.kings,
+            .start_turn    = static_cast<u8>(node->turn_ == Turn::kWhite ? 0 : 1),
+            .n_simulations = (u64)kSimulationsPerNode,
+        });
+    }
+    return gpu::launchers::HostSimulateCheckersGames(params, kSimulationMaxDepth);
 }
 
 void MonteCarloTree::BackPropagate(std::vector<MonteCarloTreeNode *> nodes, const std::vector<SimulationResult> results)
 {
-    assert(true && "Not implemented");
+    assert(nodes.size() == results.size());
+
+    for (u32 i = 0; i < nodes.size(); i++) {
+        MonteCarloTreeNode *node = nodes[i];
+        SimulationResult result  = results[i];
+
+        node->visits_ += result.n_simulations;
+        node->score_ += result.score;
+        while (node->parent_ != nullptr) {
+            node = node->parent_;
+            node->visits_ += result.n_simulations;
+            node->score_ += result.score;
+        }
+    }
 }
 
 MonteCarloTreeNode::MonteCarloTreeNode(MonteCarloTreeNode::Board board, Turn turn)
@@ -146,11 +192,11 @@ MonteCarloTreeNode::MonteCarloTreeNode(MonteCarloTreeNode::Board board, Turn tur
     parent_ = nullptr;
 }
 
-MonteCarloTreeNode::MonteCarloTreeNode(MonteCarloTreeNode::Board board, MonteCarloTreeNode *parent)
+MonteCarloTreeNode::MonteCarloTreeNode(MonteCarloTreeNode::Board board, MonteCarloTreeNode *parent, Turn turn)
 {
     board_  = board;
     parent_ = parent;
-    turn_   = parent->turn_ == Turn::kWhite ? Turn::kBlack : Turn::kWhite;
+    turn_   = turn;
 }
 
 MonteCarloTreeNode::~MonteCarloTreeNode()

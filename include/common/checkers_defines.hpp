@@ -38,7 +38,7 @@ class BoardConstants
     static constexpr board_t kRightBoardEdgeMask = []() constexpr {
         board_t mask = 0;
         for (u8 i = 0; i < kBoardEdgeLength; ++i) {
-            mask |= 1 << (i * kBoardEdgeLength * 2 + kBoardEdgeLength - 1);
+            mask |= 1 << (i * kBoardEdgeLength * 2 + 2 * kBoardEdgeLength - 1);
         }
         return mask;
     }();

@@ -301,21 +301,10 @@ std::vector<SimulationResult> HostSimulateCheckersGames(const std::vector<Simula
                 // Black started, Black wins => storeVal=2
                 store_val = 2;
             }
-            finalScores[sim_index] = store_val;
+            results[idx].score += store_val;
         }
 
-        // Sum the range finalScores[offset .. offset+n_sims-1]
-        u64 sum = 0;
-        for (u64 s = 0; s < n_sims; s++) {
-            sum += finalScores[offset + s];
-        }
-        offset += n_sims;
-
-        // finalScores are in {0=lose,1=draw,2=win}
-        // We convert sum_of_outcomes to a fractional score => sum/2.0
-        // (2 => 1.0, 1 => 0.5, 0 => 0.0 average)
-        double final_score = static_cast<double>(sum) / 2.0;
-        results[idx].score = final_score;
+        results[idx].score /= 2.0;
     }
 
     return results;

@@ -8,6 +8,16 @@ namespace checkers::cpu::move_gen
 
 // TODO: Split into .tpp
 
+// Flags
+static constexpr u8 kIsPieceOnBoardFlagIndex = 0;
+// Adjacent pieces
+static constexpr u8 kIsUpperLeftMoveInvalid  = 1;
+static constexpr u8 kIsUpperRightMoveInvalid = 2;
+static constexpr u8 kIsLowerLeftMoveInvalid  = 3;
+static constexpr u8 kIsLowerRightMoveInvalid = 4;
+
+static constexpr u8 kOnlyIsPieceOnBoardMask = 1 << kIsPieceOnBoardFlagIndex;
+
 template <Turn turn>
 static inline void TryMoveForward(
     board_index_t figure_idx, board_t all_pieces, move_t *out_moves, u8 &out_num_moves, move_flags_t &out_capture_mask,
@@ -29,7 +39,7 @@ static inline void TryMoveForward(
 
     // Helper for writing a move if not invalid
     auto WriteMove = [&](bool isInvalid, board_index_t to_idx) {
-        isInvalid |= !ReadFlag(flags, 0);  // 0 is kIsPieceOnBoardFlagIndex
+        isInvalid |= !ReadFlag(flags, kIsPieceOnBoardFlagIndex);
         if (!isInvalid) {
             out_moves[out_num_moves] = EncodeMove(figure_idx, to_idx);
             out_num_moves++;
@@ -38,33 +48,18 @@ static inline void TryMoveForward(
     };
 
     if constexpr (turn == Turn::kWhite) {
-        bool ul_invalid = (IsOnEdge<Direction::kUpLeft>(figure_idx) || IsPieceAt(all_pieces, ul));
-        bool ur_invalid = (IsOnEdge<Direction::kUpRight>(figure_idx) || IsPieceAt(all_pieces, ur));
+        flags |= (IsOnEdge<Direction::kUpLeft>(figure_idx) || IsPieceAt(all_pieces, ul)) << kIsUpperLeftMoveInvalid;
+        flags |= (IsOnEdge<Direction::kUpRight>(figure_idx) || IsPieceAt(all_pieces, ur)) << kIsUpperRightMoveInvalid;
 
-        // store bits in flags
-        if (ul_invalid) {
-            flags |= (1 << 1);  // kIsUpperLeftMoveInvalid  TODO: add these as constants
-        }
-        if (ur_invalid) {
-            flags |= (1 << 2);  // kIsUpperRightMoveInvalid
-        }
+        WriteMove(ReadFlag(flags, kIsUpperLeftMoveInvalid), ul);
+        WriteMove(ReadFlag(flags, kIsUpperRightMoveInvalid), ur);
 
-        WriteMove(ul_invalid, ul);
-        WriteMove(ur_invalid, ur);
     } else {
-        // turn == Turn::kBlack
-        bool ll_invalid = (IsOnEdge<Direction::kDownLeft>(figure_idx) || IsPieceAt(all_pieces, ll));
-        bool lr_invalid = (IsOnEdge<Direction::kDownRight>(figure_idx) || IsPieceAt(all_pieces, lr));
+        flags |= (IsOnEdge<Direction::kDownLeft>(figure_idx) || IsPieceAt(all_pieces, ll)) << kIsLowerLeftMoveInvalid;
+        flags |= (IsOnEdge<Direction::kDownRight>(figure_idx) || IsPieceAt(all_pieces, lr)) << kIsLowerRightMoveInvalid;
 
-        if (ll_invalid) {
-            flags |= (1 << 3);  // kIsLowerLeftMoveInvalid
-        }
-        if (lr_invalid) {
-            flags |= (1 << 4);  // kIsLowerRightMoveInvalid
-        }
-
-        WriteMove(ll_invalid, ll);
-        WriteMove(lr_invalid, lr);
+        WriteMove(ReadFlag(flags, kIsLowerLeftMoveInvalid), ll);
+        WriteMove(ReadFlag(flags, kIsLowerRightMoveInvalid), lr);
     }
 }
 
@@ -92,36 +87,22 @@ static inline void TryCapture(
 
     // We replicate the bit-flag logic in a straightforward manner:
     // Each direction might be invalid if on edge, or if missing an enemy piece, or if the jump square is occupied.
-    bool ul_invalid =
-        (IsOnEdge<Direction::kUpLeft>(figure_idx) || IsOnEdge<Direction::kUpLeft>(ul) || !IsPieceAt(enemy_pieces, ul) ||
-         IsPieceAt(all_pieces, ul_jump));
-    bool ur_invalid =
-        (IsOnEdge<Direction::kUpRight>(figure_idx) || IsOnEdge<Direction::kUpRight>(ur) ||
-         !IsPieceAt(enemy_pieces, ur) || IsPieceAt(all_pieces, ur_jump));
-    bool ll_invalid =
-        (IsOnEdge<Direction::kDownLeft>(figure_idx) || IsOnEdge<Direction::kDownLeft>(ll) ||
-         !IsPieceAt(enemy_pieces, ll) || IsPieceAt(all_pieces, ll_jump));
-    bool lr_invalid =
-        (IsOnEdge<Direction::kDownRight>(figure_idx) || IsOnEdge<Direction::kDownRight>(lr) ||
-         !IsPieceAt(enemy_pieces, lr) || IsPieceAt(all_pieces, lr_jump));
-
-    // write bits into flags for debug if needed
-    if (ul_invalid) {
-        flags |= (1 << 1);
-    }
-    if (ur_invalid) {
-        flags |= (1 << 2);
-    }
-    if (ll_invalid) {
-        flags |= (1 << 3);
-    }
-    if (lr_invalid) {
-        flags |= (1 << 4);
-    }
+    flags |= (IsOnEdge<Direction::kUpLeft>(figure_idx) || IsOnEdge<Direction::kUpLeft>(ul) ||
+              !IsPieceAt(enemy_pieces, ul) || IsPieceAt(all_pieces, ul_jump))
+             << kIsUpperLeftMoveInvalid;
+    flags |= (IsOnEdge<Direction::kUpRight>(figure_idx) || IsOnEdge<Direction::kUpRight>(ur) ||
+              !IsPieceAt(enemy_pieces, ur) || IsPieceAt(all_pieces, ur_jump))
+             << kIsUpperRightMoveInvalid;
+    flags |= (IsOnEdge<Direction::kDownLeft>(figure_idx) || IsOnEdge<Direction::kDownLeft>(ll) ||
+              !IsPieceAt(enemy_pieces, ll) || IsPieceAt(all_pieces, ll_jump))
+             << kIsLowerLeftMoveInvalid;
+    flags |= (IsOnEdge<Direction::kDownRight>(figure_idx) || IsOnEdge<Direction::kDownRight>(lr) ||
+              !IsPieceAt(enemy_pieces, lr) || IsPieceAt(all_pieces, lr_jump))
+             << kIsLowerRightMoveInvalid;
 
     // Helper for writing a capturing move
     auto WriteCapture = [&](bool invalid, board_index_t to_idx) {
-        invalid |= !ReadFlag(flags, 0);  // if piece not on board or already flagged
+        invalid |= !ReadFlag(flags, kIsPieceOnBoardFlagIndex);
         if (!invalid) {
             move_t mv                = EncodeMove(figure_idx, to_idx);
             out_moves[out_num_moves] = mv;
@@ -133,134 +114,72 @@ static inline void TryCapture(
         }
     };
 
-    WriteCapture(ul_invalid, ul_jump);
-    WriteCapture(ur_invalid, ur_jump);
-    WriteCapture(ll_invalid, ll_jump);
-    WriteCapture(lr_invalid, lr_jump);
+    WriteCapture(ReadFlag(flags, kIsUpperLeftMoveInvalid), ul_jump);
+    WriteCapture(ReadFlag(flags, kIsUpperRightMoveInvalid), ur_jump);
+    WriteCapture(ReadFlag(flags, kIsLowerLeftMoveInvalid), ll_jump);
+    WriteCapture(ReadFlag(flags, kIsLowerRightMoveInvalid), lr_jump);
 }
 
 /**
  * @brief Attempt king moves for a single piece on CPU.
  */
+template <Direction direction>
 static inline void TryDiagonal(
-    checkers::cpu::move_gen::Direction direction, board_index_t figure_idx, board_t all_pieces, board_t enemy_pieces,
-    board_index_t start_idx, move_t *out_moves, u8 &out_num_moves, move_flags_t &out_capture_mask,
-    move_flags_t &per_board_flags, u8 &flags
+    board_index_t figure_idx, board_t all_pieces, board_t enemy_pieces, board_index_t start_idx, move_t *out_moves,
+    u8 &out_num_moves, move_flags_t &out_capture_mask, move_flags_t &per_board_flags, u8 &flags
 )
 {
     using namespace checkers::cpu;
     using namespace checkers::cpu::move_gen;
-    // We replicate the logic from the GPU's TryDiagonal.
 
-    static constexpr u8 kIsPieceOnBoardIndex = 0;
-    if (!ReadFlag(flags, kIsPieceOnBoardIndex)) {
-        return;  // the piece is not present for some reason
-    }
+    static constexpr u8 kIsPieceOnBoardFlagIndex = 0;
+    static constexpr u8 kContinueFlagIndex       = 1;
+    static constexpr u8 kInvalidNextFlagIndex    = 2;
+    static constexpr u8 kInvalidJumpFlagIndex    = 3;
 
-    bool stop                 = false;
+    const bool immediate_stop = !ReadFlag(flags, kIsPieceOnBoardFlagIndex) || IsOnEdge<direction>(start_idx);
+    flags |= (!immediate_stop) << kContinueFlagIndex;
+
     board_index_t current_idx = start_idx;
-    bool has_captured_so_far  = false;  // track if we do a capturing move
+    bool has_captured_so_far  = false;
 
-    while (!stop) {
-        // next in diagonal
-        if (IsOnEdge<Direction::kUpLeft>(current_idx) && direction == Direction::kUpLeft) {
-            break;
-        }
-        if (IsOnEdge<Direction::kUpRight>(current_idx) && direction == Direction::kUpRight) {
-            break;
-        }
-        if (IsOnEdge<Direction::kDownLeft>(current_idx) && direction == Direction::kDownLeft) {
-            break;
-        }
-        if (IsOnEdge<Direction::kDownRight>(current_idx) && direction == Direction::kDownRight) {
-            break;
-        }
-
-        board_index_t next_idx =
-            (direction == Direction::kUpLeft)     ? GetAdjacentIndex<Direction::kUpLeft>(current_idx)
-            : (direction == Direction::kUpRight)  ? GetAdjacentIndex<Direction::kUpRight>(current_idx)
-            : (direction == Direction::kDownLeft) ? GetAdjacentIndex<Direction::kDownLeft>(current_idx)
-                                                  : GetAdjacentIndex<Direction::kDownRight>(current_idx);
-
-        // 1) Try normal move
-        if (!IsPieceAt(all_pieces, next_idx)) {
-            // valid normal move
-            move_t mv                = EncodeMove(figure_idx, next_idx);
+    auto WriteKingMove = [&](bool is_capture_invalid, bool is_capture, board_index_t to_idx) {
+        is_capture_invalid |= !ReadFlag(flags, kIsPieceOnBoardFlagIndex);
+        if (!is_capture_invalid) {
+            move_t mv                = EncodeMove(figure_idx, to_idx);
             out_moves[out_num_moves] = mv;
-            if (has_captured_so_far) {
-                // if we had captured before, this move is also a capture
+            if (is_capture) {
                 out_capture_mask |= (1 << out_num_moves);
+                has_captured_so_far = true;
                 per_board_flags |= (1 << MoveFlagsConstants::kCaptureFound);
             }
-            out_num_moves++;
             per_board_flags |= (1 << MoveFlagsConstants::kMoveFound);
+            out_num_moves++;
         }
+    };
 
-        // 2) Try capture
-        // Check next_idx has enemy piece, and next jump is free.
-        if (IsPieceAt(enemy_pieces, next_idx)) {
-            // jump square
-            if (!IsOnEdge<Direction::kUpLeft>(next_idx) && direction == Direction::kUpLeft) {
-                board_index_t jump_idx = GetAdjacentIndex<Direction::kUpLeft>(next_idx);
-                if (!IsPieceAt(all_pieces, jump_idx) && !IsOnEdge<Direction::kUpLeft>(next_idx)) {
-                    // can capture
-                    move_t mv                = EncodeMove(figure_idx, jump_idx);
-                    out_moves[out_num_moves] = mv;
-                    out_capture_mask |= (1 << out_num_moves);
-                    has_captured_so_far = true;
-                    out_num_moves++;
-                    per_board_flags |= (1 << MoveFlagsConstants::kMoveFound);
-                    per_board_flags |= (1 << MoveFlagsConstants::kCaptureFound);
-                }
-            }
-            // same for the other directions...
-            else if (!IsOnEdge<Direction::kUpRight>(next_idx) && direction == Direction::kUpRight) {
-                board_index_t jump_idx = GetAdjacentIndex<Direction::kUpRight>(next_idx);
-                if (!IsPieceAt(all_pieces, jump_idx) && !IsOnEdge<Direction::kUpRight>(next_idx)) {
-                    move_t mv                = EncodeMove(figure_idx, jump_idx);
-                    out_moves[out_num_moves] = mv;
-                    out_capture_mask |= (1 << out_num_moves);
-                    has_captured_so_far = true;
-                    out_num_moves++;
-                    per_board_flags |= (1 << MoveFlagsConstants::kMoveFound);
-                    per_board_flags |= (1 << MoveFlagsConstants::kCaptureFound);
-                }
-            } else if (!IsOnEdge<Direction::kDownLeft>(next_idx) && direction == Direction::kDownLeft) {
-                board_index_t jump_idx = GetAdjacentIndex<Direction::kDownLeft>(next_idx);
-                if (!IsPieceAt(all_pieces, jump_idx) && !IsOnEdge<Direction::kDownLeft>(next_idx)) {
-                    move_t mv                = EncodeMove(figure_idx, jump_idx);
-                    out_moves[out_num_moves] = mv;
-                    out_capture_mask |= (1 << out_num_moves);
-                    has_captured_so_far = true;
-                    out_num_moves++;
-                    per_board_flags |= (1 << MoveFlagsConstants::kMoveFound);
-                    per_board_flags |= (1 << MoveFlagsConstants::kCaptureFound);
-                }
-            } else if (!IsOnEdge<Direction::kDownRight>(next_idx) && direction == Direction::kDownRight) {
-                board_index_t jump_idx = GetAdjacentIndex<Direction::kDownRight>(next_idx);
-                if (!IsPieceAt(all_pieces, jump_idx) && !IsOnEdge<Direction::kDownRight>(next_idx)) {
-                    move_t mv                = EncodeMove(figure_idx, jump_idx);
-                    out_moves[out_num_moves] = mv;
-                    out_capture_mask |= (1 << out_num_moves);
-                    has_captured_so_far = true;
-                    out_num_moves++;
-                    per_board_flags |= (1 << MoveFlagsConstants::kMoveFound);
-                    per_board_flags |= (1 << MoveFlagsConstants::kCaptureFound);
-                }
-            }
+    while (ReadFlag(flags, kContinueFlagIndex)) {
+        board_index_t next_idx      = GetAdjacentIndex<direction>(current_idx);
+        board_index_t next_jump_idx = GetAdjacentIndex<direction>(next_idx);
 
-            // Once we detect an enemy, we typically break scanning further squares
-            // (like normal checkers king logic). For simplicity, let's break here.
-            break;
-        }
+        // Attempt a simple move
+        flags |= (IsOnEdge<direction>(current_idx) | IsPieceAt(all_pieces, next_idx)) << kInvalidNextFlagIndex;
+        WriteKingMove(ReadFlag(flags, kInvalidNextFlagIndex), has_captured_so_far, next_idx);
 
-        // If next square is occupied by your side, stop
-        if (IsPieceAt(all_pieces, next_idx)) {
-            break;
-        }
+        // Attempt a capture
+        flags |= (IsOnEdge<direction>(current_idx) | IsOnEdge<direction>(next_jump_idx) |
+                  !IsPieceAt(enemy_pieces, next_idx) | IsPieceAt(all_pieces, next_jump_idx))
+                 << kInvalidJumpFlagIndex;
+        const bool can_capture = !ReadFlag(flags, kInvalidJumpFlagIndex);
+        has_captured_so_far    = has_captured_so_far || can_capture;
 
-        // otherwise continue scanning
         current_idx = next_idx;
+
+        const bool next_stop = IsOnEdge<direction>(next_idx) ||
+                               (ReadFlag(flags, kInvalidNextFlagIndex) && ReadFlag(flags, kInvalidJumpFlagIndex));
+
+        flags &= kOnlyIsPieceOnBoardMask;  // keep only piece presence
+        flags |= (!next_stop << kContinueFlagIndex);
     }
 }
 
@@ -271,22 +190,21 @@ static inline void TryKingMoves(
 {
     using namespace checkers::cpu::move_gen;
 
-    // We'll just call TryDiagonal in each direction
-    TryDiagonal(
-        Direction::kUpLeft, figure_idx, all_pieces, enemy_pieces, figure_idx, out_moves, out_num_moves,
-        out_capture_mask, per_board_flags, flags
+    TryDiagonal<Direction::kUpLeft>(
+        figure_idx, all_pieces, enemy_pieces, figure_idx, out_moves, out_num_moves, out_capture_mask, per_board_flags,
+        flags
     );
-    TryDiagonal(
-        Direction::kUpRight, figure_idx, all_pieces, enemy_pieces, figure_idx, out_moves, out_num_moves,
-        out_capture_mask, per_board_flags, flags
+    TryDiagonal<Direction::kUpRight>(
+        figure_idx, all_pieces, enemy_pieces, figure_idx, out_moves, out_num_moves, out_capture_mask, per_board_flags,
+        flags
     );
-    TryDiagonal(
-        Direction::kDownLeft, figure_idx, all_pieces, enemy_pieces, figure_idx, out_moves, out_num_moves,
-        out_capture_mask, per_board_flags, flags
+    TryDiagonal<Direction::kDownLeft>(
+        figure_idx, all_pieces, enemy_pieces, figure_idx, out_moves, out_num_moves, out_capture_mask, per_board_flags,
+        flags
     );
-    TryDiagonal(
-        Direction::kDownRight, figure_idx, all_pieces, enemy_pieces, figure_idx, out_moves, out_num_moves,
-        out_capture_mask, per_board_flags, flags
+    TryDiagonal<Direction::kDownRight>(
+        figure_idx, all_pieces, enemy_pieces, figure_idx, out_moves, out_num_moves, out_capture_mask, per_board_flags,
+        flags
     );
 }
 
@@ -308,34 +226,36 @@ static inline void GenerateMovesForSinglePiece(
 
     // Identify if this piece is from the current turn
     board_t current_player_pieces = (turn == Turn::kWhite) ? white_pieces : black_pieces;
-    board_t all_pieces            = white_pieces | black_pieces;
-    board_t enemy_pieces          = (turn == Turn::kWhite) ? black_pieces : white_pieces;
 
     // If not a piece for this turn, do nothing
-    bool is_piece = (current_player_pieces >> figure_idx) & 1U;
+    const bool is_piece = ReadFlag(current_player_pieces, figure_idx);
     if (!is_piece) {
         return;
     }
 
+    board_t all_pieces   = white_pieces | black_pieces;
+    board_t enemy_pieces = (turn == Turn::kWhite) ? black_pieces : white_pieces;
+
     // Mark the piece as on board in "flags"
-    flags |= (1 << 0);
+    flags |= (1 << kIsPieceOnBoardFlagIndex);
 
     // Count how many moves we've added so far
     u8 num_moves = 0;
 
-    bool is_king_piece = (kings >> figure_idx) & 1U;
+    const bool is_king_piece = ReadFlag(kings, figure_idx);
     if (!is_king_piece) {
         // normal piece
         TryMoveForward<turn>(figure_idx, all_pieces, out_moves, num_moves, out_capture_mask, per_board_flags, flags);
         // keep only the "piece on board" bit
-        flags &= 1;
+        flags &= kOnlyIsPieceOnBoardMask;
 
         TryCapture<turn>(
             figure_idx, all_pieces, enemy_pieces, out_moves, num_moves, out_capture_mask, per_board_flags, flags
         );
-        flags &= 1;
+        flags &= kOnlyIsPieceOnBoardMask;
     } else {
-        // it's a king
+        flags = 0;
+        flags |= 1 << kIsPieceOnBoardFlagIndex;
         TryKingMoves(
             figure_idx, all_pieces, enemy_pieces, kings, out_moves, num_moves, out_capture_mask, per_board_flags, flags
         );
