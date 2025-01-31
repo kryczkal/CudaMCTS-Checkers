@@ -26,7 +26,7 @@ namespace checkers::gpu::move_selection
  */
 __device__ move_t SelectRandomMoveForSingleBoard(
     const board_t white_bits, const board_t black_bits, const board_t king_bits, const move_t* moves,
-    const u8* move_counts, const move_flags_t* capture_masks, const move_flags_t per_board_flags, u8& seed
+    const u8* move_counts, const move_flags_t* capture_masks, const move_flags_t per_board_flags, u32& seed
 );
 
 /**
@@ -46,7 +46,7 @@ __device__ move_t SelectRandomMoveForSingleBoard(
  */
 __device__ move_t SelectBestMoveForSingleBoard(
     const board_t white_bits, const board_t black_bits, const board_t king_bits, const move_t* moves,
-    const u8* move_counts, const move_flags_t* capture_masks, const move_flags_t per_board_flags, u8& seed
+    const u8* move_counts, const move_flags_t* capture_masks, const move_flags_t per_board_flags, u32& seed
 );
 
 /**
@@ -68,7 +68,7 @@ __device__ move_t SelectBestMoveForSingleBoard(
 __global__ void SelectBestMoves(
     const board_t* d_whites, const board_t* d_blacks, const board_t* d_kings, const move_t* d_moves,
     const u8* d_move_counts, const move_flags_t* d_move_capture_mask, const move_flags_t* d_per_board_flags,
-    const u64 n_boards, u8* d_seeds, move_t* d_best_moves
+    const u64 n_boards, u32* d_seeds, move_t* d_best_moves
 );
 
 }  // namespace checkers::gpu::move_selection

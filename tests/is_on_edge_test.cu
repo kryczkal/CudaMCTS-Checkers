@@ -59,7 +59,7 @@ struct CPUISEdgeTestImpl {
      */
     static void SetPiece(BoardType& board, checkers::board_index_t idx, char pieceType)
     {
-        board.setPieceAt(idx, pieceType);
+        board.SetPieceAt(idx, pieceType);
     }
 };
 
@@ -116,7 +116,7 @@ struct GPUISEdgeTestImpl {
      */
     static void SetPiece(BoardType& board, checkers::board_index_t idx, char pieceType)
     {
-        board.setPieceAt(idx, pieceType);
+        board.SetPieceAt(idx, pieceType);
     }
 };
 

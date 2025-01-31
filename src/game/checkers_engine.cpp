@@ -1,11 +1,12 @@
 #include "game/checkers_engine.hpp"
 #include <algorithm>
 #include <iostream>
+
+#include "common/checkers_defines.hpp"
+#include "cpu/apply_move.hpp"
 #include "cpu/board_helpers.hpp"
-#include "cpu/launchers.hpp"  // For CPU-based generation/apply
+#include "cpu/launchers.hpp"
 #include "cpu/move_generation.hpp"
-#include "cuda/launchers.cuh"  // If you want GPU-based generation/apply
-#include "cuda/move_generation.tpp"
 
 namespace checkers
 {
@@ -13,204 +14,184 @@ namespace checkers
 CheckersEngine::CheckersEngine(const checkers::cpu::Board &board, checkers::Turn turn)
     : board_(board), current_turn_(turn)
 {
-    last_moves_.h_moves.resize(
-        checkers::MoveGenResult::kTotalSquares * checkers::MoveGenResult::kMovesPerPiece, checkers::kInvalidMove
-    );
-    last_moves_.h_move_counts.resize(checkers::MoveGenResult::kTotalSquares, 0);
-    last_moves_.h_capture_masks.resize(checkers::MoveGenResult::kTotalSquares, 0);
-    last_moves_.h_per_board_flags.resize(1, 0);
 }
 
 checkers::cpu::Board CheckersEngine::GetBoard() const { return board_; }
 
 checkers::Turn CheckersEngine::GetCurrentTurn() const { return current_turn_; }
 
-void CheckersEngine::GenerateMovesCPU()
+bool CheckersEngine::IsTerminal() const
 {
-    auto results = checkers::cpu::launchers::HostGenerateMoves({board_}, current_turn_);
-    last_moves_  = results[0];
-    has_no_moves_ =
-        checkers::gpu::ReadFlag(last_moves_.h_per_board_flags[0], checkers::MoveFlagsConstants::kMoveFound) == 0;
+    // If the game result says it's not in progress, it's terminal
+    return (game_result_ != GameResult::kInProgress);
 }
 
-void CheckersEngine::GenerateMovesGPU()
+GameResult CheckersEngine::CheckGameResult()
 {
-    auto results = checkers::gpu::launchers::HostGenerateMoves({board_}, current_turn_);
-    last_moves_  = results[0];
-    has_no_moves_ =
-        checkers::cpu::ReadFlag(last_moves_.h_per_board_flags[0], checkers::MoveFlagsConstants::kMoveFound) == 0;
-}
+    if (game_result_ != GameResult::kInProgress) {
+        return game_result_;
+    }
 
-const checkers::MoveGenResult &CheckersEngine::GetLastMoveGenResult() const { return last_moves_; }
+    // If either side has no pieces, the other side wins
+    if (board_.white == 0) {
+        game_result_ = GameResult::kBlackWin;
+        return game_result_;
+    }
+    if (board_.black == 0) {
+        game_result_ = GameResult::kWhiteWin;
+        return game_result_;
+    }
 
-bool CheckersEngine::HasNoMoves() const { return has_no_moves_; }
+    // 40-move rule for a draw
+    if (non_reversible_count_ >= 40) {
+        game_result_ = GameResult::kDraw;
+        return game_result_;
+    }
 
-bool CheckersEngine::ApplyMove(checkers::move_t move, bool do_validate)
-{
-    // Optionally re-generate all moves for validation
-    if (do_validate) {
-        GenerateMovesCPU();
-        if (has_no_moves_) {
-            return false;
+    MoveGenResult result = GenerateMoves();
+    if (!cpu::ReadFlag(result.h_per_board_flags[0], MoveFlagsConstants::kMoveFound)) {
+        // The side with no moves loses
+        if (current_turn_ == Turn::kWhite) {
+            game_result_ = GameResult::kBlackWin;
+            return game_result_;
+        } else {
+            game_result_ = GameResult::kWhiteWin;
+            return game_result_;
         }
-        if (!IsMoveValid(move)) {
+    }
+    // Otherwise, not done
+    return game_result_;
+}
+
+MoveGenResult CheckersEngine::GenerateMoves()
+{
+    using namespace checkers::cpu::move_gen;
+
+    MoveGenResult result{};
+    if (current_turn_ == Turn::kBlack) {
+        cpu::move_gen::GenerateMoves<Turn::kBlack>(
+            &board_.white, &board_.black, &board_.kings, result.h_moves.data(), result.h_move_counts.data(),
+            result.h_capture_masks.data(), result.h_per_board_flags.data(), 1
+        );
+    } else {
+        cpu::move_gen::GenerateMoves<Turn::kWhite>(
+            &board_.white, &board_.black, &board_.kings, result.h_moves.data(), result.h_move_counts.data(),
+            result.h_capture_masks.data(), result.h_per_board_flags.data(), 1
+        );
+    }
+    if (!cpu::ReadFlag(result.h_per_board_flags[0], MoveFlagsConstants::kMoveFound)) {
+        game_result_ = (current_turn_ == Turn::kWhite ? GameResult::kBlackWin : GameResult::kWhiteWin);
+    }
+    return result;
+}
+
+bool CheckersEngine::ApplyMove(move_t mv, bool validate)
+{
+    using namespace checkers::cpu::move_gen;
+    using namespace checkers::cpu::apply_move;
+
+    // Basic check if the move is feasible. We'll generate all possible single-step or single-jump moves.
+    if (validate) {
+        MoveGenResult result = GenerateMoves();
+        auto it              = std::find(result.h_moves.begin(), result.h_moves.end(), mv);
+        if (it == result.h_moves.end()) {
             return false;
         }
     }
 
-    // Apply the move
-    auto updated = checkers::cpu::launchers::HostApplyMoves({board_}, {move});
-    board_       = updated[0];
+    // We apply exactly one single-jump or step
+    board_index_t from_sq = DecodeMove<MovePart::From>(mv);
 
-    // Handle promotion
-    board_.kings |= (board_.white & checkers::BoardConstants::kTopBoardEdgeMask);
-    board_.kings |= (board_.black & checkers::BoardConstants::kBottomBoardEdgeMask);
+    // Save old board to detect a capture
+    board_t old_enemy_board = (current_turn_ == Turn::kWhite ? board_.black : board_.white);
 
-    // If it was a capture, reset the non-reversible counter; otherwise increment.
-    bool was_capture = IsCaptureMove(move);
-    checkers::board_index_t from_sq =
-        checkers::cpu::move_gen::DecodeMove<checkers::cpu::move_gen::MovePart::From>(move);
+    // Actually apply the move to the bitmasks
+    ApplyMoveOnSingleBoard(mv, board_.white, board_.black, board_.kings);
+
+    // Check if it was a capture
+    bool was_capture = false;
+    {
+        board_t enemy_board = (current_turn_ == Turn::kWhite ? board_.black : board_.white);
+        if (enemy_board < old_enemy_board) {
+            was_capture = true;
+        }
+    }
+
     UpdateNonReversibleCount(was_capture, from_sq);
-    SwitchTurnIfNeeded(move);
+
+    // If capturing, check if we can continue from 'to_sq'. If yes, do NOT switch turn.
+    bool multi_cap_continues = false;
+    if (was_capture) {
+        multi_cap_continues = CheckAndMaybeContinueCapture(mv);
+    }
+
+    if (!multi_cap_continues) {
+        // Switch side
+        current_turn_ = (current_turn_ == Turn::kWhite ? Turn::kBlack : Turn::kWhite);
+        HandlePromotions();
+    }
 
     return true;
 }
 
-void CheckersEngine::SwitchTurnIfNeeded(checkers::move_t last_move)
+bool CheckersEngine::CheckAndMaybeContinueCapture(move_t last_move)
 {
-    bool was_capture = IsCaptureMove(last_move);
-    if (!was_capture) {
-        // Normal move => simply switch
-        current_turn_ = (current_turn_ == Turn::kWhite) ? Turn::kBlack : Turn::kWhite;
-        return;
-    }
+    using namespace checkers::cpu::move_gen;
 
-    // -------------------------------------------
-    //  If the last move was a capture, see if the
-    //  piece can continue capturing from 'to_sq'.
-    // -------------------------------------------
-    board_index_t to_sq = cpu::move_gen::DecodeMove<cpu::move_gen::MovePart::To>(last_move);
+    board_index_t to_sq = DecodeMove<MovePart::To>(last_move);
 
-    // We'll generate moves for that single square only,
-    // resetting last_moves_ to store partial results.
-    std::fill(last_moves_.h_move_counts.begin(), last_moves_.h_move_counts.end(), 0);
-    std::fill(last_moves_.h_capture_masks.begin(), last_moves_.h_capture_masks.end(), 0);
-    std::fill(last_moves_.h_moves.begin(), last_moves_.h_moves.end(), kInvalidMove);
-    last_moves_.h_per_board_flags[0] = 0;
+    // generate moves for to_sq
+    // If there's a capturing move from that square, we remain on the same turn.
+    move_t local_moves[kNumMaxMovesPerPiece];
+    u8 local_count                  = 0;
+    move_flags_t local_capture_mask = 0;
+    move_flags_t dummy_flags        = 0;
 
-    // local references
     board_t w = board_.white;
     board_t b = board_.black;
     board_t k = board_.kings;
 
-    // Perform a single-piece move generation
     if (current_turn_ == Turn::kWhite) {
-        cpu::move_gen::GenerateMovesForSinglePiece<Turn::kWhite>(
-            to_sq, w, b, k, &last_moves_.h_moves[to_sq * kNumMaxMovesPerPiece], last_moves_.h_move_counts[to_sq],
-            last_moves_.h_capture_masks[to_sq], last_moves_.h_per_board_flags[0]
+        GenerateMovesForSinglePiece<Turn::kWhite>(
+            to_sq, w, b, k, local_moves, local_count, local_capture_mask, dummy_flags
         );
     } else {
-        cpu::move_gen::GenerateMovesForSinglePiece<Turn::kBlack>(
-            to_sq, b, w, k, &last_moves_.h_moves[to_sq * kNumMaxMovesPerPiece], last_moves_.h_move_counts[to_sq],
-            last_moves_.h_capture_masks[to_sq], last_moves_.h_per_board_flags[0]
+        GenerateMovesForSinglePiece<Turn::kBlack>(
+            to_sq, w, b, k, local_moves, local_count, local_capture_mask, dummy_flags
         );
     }
 
-    // -------------------------------------------
-    // Check if further capture is possible
-    // -------------------------------------------
-    bool more_captures_available = cpu::ReadFlag(last_moves_.h_per_board_flags[0], MoveFlagsConstants::kCaptureFound);
-
-    if (!more_captures_available) {
-        // No additional capture => switch sides
-        current_turn_ = (current_turn_ == Turn::kWhite) ? Turn::kBlack : Turn::kWhite;
+    // If no sub-moves or no capture in them, we cannot continue
+    if (local_count == 0) {
+        return false;
     }
-    // else remain on same side to do another capture
+    if (local_capture_mask == 0) {
+        return false;
+    }
+
+    // There's at least one capturing sub-move => we do NOT switch turns
+    return true;
 }
 
-GameResult CheckersEngine::CheckGameResult() const
+void CheckersEngine::HandlePromotions()
 {
-    // If no moves => other side wins
-    if (has_no_moves_) {
-        // The side that cannot move loses
-        if (current_turn_ == checkers::Turn::kWhite) {
-            return GameResult::kBlackWin;
-        } else {
-            return GameResult::kWhiteWin;
-        }
-    }
-    // If no pieces for black => white wins
-    if (board_.black == 0) {
-        return GameResult::kWhiteWin;
-    }
-    // If no pieces for white => black wins
-    if (board_.white == 0) {
-        return GameResult::kBlackWin;
-    }
-    // 40-move rule
-    if (non_reversible_count_ >= 40) {
-        return GameResult::kDraw;
-    }
-    // Not done
-    return GameResult::kInProgress;
+    // TODO: Test this
+    board_.kings |= (board_.white & BoardConstants::kTopBoardEdgeMask);
+    board_.kings |= (board_.black & BoardConstants::kBottomBoardEdgeMask);
 }
 
 void CheckersEngine::UpdateNonReversibleCount(bool was_capture, checkers::board_index_t from_sq)
 {
-    const bool kFromIsKing = checkers::cpu::ReadFlag(board_.kings, from_sq);
+    using namespace checkers::cpu;
+    // If a capture or the from-square was not a king, reset to 0
+    const bool from_was_king = ReadFlag(board_.kings, from_sq);
 
-    if (was_capture || !kFromIsKing) {
+    if (was_capture || !from_was_king) {
         non_reversible_count_ = 0;
     } else {
+        // It's a king move that didn't capture => increment
         non_reversible_count_++;
     }
-}
-
-bool CheckersEngine::IsMoveValid(checkers::move_t mv) const
-{
-    const bool kBoardHasCapture =
-        checkers::cpu::ReadFlag(last_moves_.h_per_board_flags[0], checkers::MoveFlagsConstants::kCaptureFound);
-    checkers::board_index_t from_sq = checkers::gpu::move_gen::DecodeMove<checkers::gpu::move_gen::MovePart::From>(mv);
-
-    // Is in bounds?
-    if (from_sq >= checkers::BoardConstants::kBoardSize) {
-        return false;
-    }
-
-    // How many sub-moves for that square?
-    u8 count = last_moves_.h_move_counts[from_sq];
-    if (count == 0)
-        return false;
-
-    const size_t kBaseIdx = from_sq * checkers::kNumMaxMovesPerPiece;
-
-    for (u8 sub = 0; sub < count; sub++) {
-        checkers::move_t candidate = last_moves_.h_moves[kBaseIdx + sub];
-        if (candidate == mv) {
-            // If captures exist for the board, ensure this move is also a capture
-            if (kBoardHasCapture) {
-                bool isCapture = checkers::cpu::ReadFlag(last_moves_.h_capture_masks[from_sq], sub);
-                return isCapture;
-            }
-            return true;
-        }
-    }
-    return false;
-}
-
-bool CheckersEngine::IsCaptureMove(checkers::move_t mv) const
-{
-    checkers::board_index_t from_sq = checkers::gpu::move_gen::DecodeMove<checkers::gpu::move_gen::MovePart::From>(mv);
-
-    const size_t kBaseIdx = from_sq * checkers::kNumMaxMovesPerPiece;
-    u8 count              = last_moves_.h_move_counts[from_sq];
-    for (u8 i = 0; i < count; i++) {
-        if (last_moves_.h_moves[kBaseIdx + i] == mv) {
-            bool is_cap = ((last_moves_.h_capture_masks[from_sq] >> i) & 1U) != 0;
-            return is_cap;
-        }
-    }
-    return false;
 }
 
 }  // namespace checkers

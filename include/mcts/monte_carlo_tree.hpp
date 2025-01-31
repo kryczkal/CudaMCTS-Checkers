@@ -6,110 +6,132 @@
 #include "common/checkers_defines.hpp"
 #include "common/concepts.hpp"
 #include "cpu/board.hpp"
+#include "game/checkers_engine.hpp"  // We embed the engine in the node
 #include "simulation_results.hpp"
 
 namespace checkers::mcts
 {
-static constexpr u64 kMaxTotalSimulations = 1e4;
+static constexpr u64 kMaxTotalSimulations = 10000;
 static constexpr u64 kSimulationMaxDepth  = 200;
 static constexpr f32 kExplorationConstant = 1.41f;
+
 class MonteCarloTreeNode;
 
+/**
+ * @brief MonteCarloTree is a standard MCTS manager that:
+ *   - holds a root node,
+ *   - repeatedly expands, simulates, and backpropagates,
+ *   - then selects the best move from the root.
+ *
+ * We embed a `CheckersEngine` in each node to keep full game logic for partial
+ * single-jump moves, multi-captures, promotion, etc.
+ */
 class MonteCarloTree
 {
-    using Board = cpu::Board;
-
     public:
-    //------------------------------------------------------------------------------//
-    //                        Class Creation and Destruction                        //
-    //------------------------------------------------------------------------------//
-    explicit MonteCarloTree(Board board, Turn turn);
-
+    explicit MonteCarloTree(checkers::cpu::Board board, checkers::Turn turn);
     ~MonteCarloTree();
 
-    //------------------------------------------------------------------------------//
-    //                                Public Methods                                //
-    //------------------------------------------------------------------------------//
-    move_t Run(f32 time_seconds);
+    /**
+     * @brief Main MCTS entrypoint: run for 'time_seconds' of expansions
+     *        and returns the best move from the root.
+     */
+    checkers::move_t Run(f32 time_seconds);
 
-    //------------------------------------------------------------------------------//
-    //                               Public Variables                               //
-    //------------------------------------------------------------------------------//
-
+    /**
+     * @brief Move root to the child that was chosen. This is optional if you want to
+     *        keep the tree from move to move. You can discard the old tree though.
+     */
     void DescendTree(const move_t move);
 
     private:
-    //------------------------------------------------------------------------------//
-    //                                Private Methods                               //
-    //------------------------------------------------------------------------------//
+    /**
+     * @brief Select a node by traversing children with highest UCT scores
+     *        until we hit a leaf or terminal node.
+     */
+    MonteCarloTreeNode* SelectNode();
 
-    ///////////////////// Main Monte Carlo Tree Search steps /////////////////////////
+    /**
+     * @brief Expand the node if it's not terminal. For each possible move from
+     *        that node, create a child node. Return the newly created child nodes.
+     */
+    std::vector<MonteCarloTreeNode*> ExpandNode(MonteCarloTreeNode* node);
 
-    MonteCarloTreeNode *SelectNode();
-    std::vector<MonteCarloTreeNode *> ExpandNode(MonteCarloTreeNode *node);
-    std::vector<SimulationResult> SimulateNodes(std::vector<MonteCarloTreeNode *> nodes);
-    void BackPropagate(std::vector<MonteCarloTreeNode *> nodes, const std::vector<SimulationResult> results);
+    /**
+     * @brief Simulate each node via random GPU simulations. Return the final results
+     *        from the perspective of the side to move in each node.
+     */
+    std::vector<SimulationResult> SimulateNodes(std::vector<MonteCarloTreeNode*> nodes);
 
-    //////////////////////////////////////////////////////////////////////////////////
+    /**
+     * @brief Propagate results up the tree (visits_++, score_+=...) from each node
+     *        up to the root.
+     */
+    void BackPropagate(std::vector<MonteCarloTreeNode*> nodes, const std::vector<SimulationResult> results);
 
+    /**
+     * @brief Utility function that yields the best move from the root according
+     *        to a certain evaluation (here: highest visited-child or highest average).
+     */
     template <MaxComparable EvalType, EvalFunction<EvalType> auto EvalFunc>
-    move_t SelectBestMove(const MonteCarloTreeNode *node);
-    f64 GetScoreFromPerspectiveOfRoot(const MonteCarloTreeNode *node, const SimulationResult &result);
+    checkers::move_t SelectBestMove(const MonteCarloTreeNode* node);
 
-    static f32 WinRate(const MonteCarloTreeNode *node);
+    /**
+     * @brief Convert a simulation result from child’s perspective into the
+     *        perspective of the node that backpropagates it. If the node’s turn
+     *        is the same as root’s turn, we keep the same score. Otherwise
+     *        we invert it:  score -> n_simulations - score, for a symmetrical zero-sum approach.
+     */
+    f64 GetScoreFromPerspectiveOfRoot(const MonteCarloTreeNode* node, const SimulationResult& result);
 
-    //------------------------------------------------------------------------------//
-    //                               Private Variables                              //
-    //------------------------------------------------------------------------------//
-    MonteCarloTreeNode *root_{};  // Root node of the tree
+    /**
+     * @brief Utility function to compute a node's "win rate" or average score / visits.
+     */
+    static f32 WinRate(const MonteCarloTreeNode* node);
+
+    private:
+    MonteCarloTreeNode* root_{};
 };
 
 class MonteCarloTreeNode
 {
-    using Board = cpu::Board;
-
     public:
-    //------------------------------------------------------------------------------//
-    //                        Class Creation and Destruction                        //
-    //------------------------------------------------------------------------------//
+    /**
+     * @brief Creates a node from a board+turn. The engine is constructed from these.
+     */
+    MonteCarloTreeNode(const cpu::Board& board, Turn turn);
 
-    explicit MonteCarloTreeNode(Board board, Turn turn);
-    explicit MonteCarloTreeNode(Board board, MonteCarloTreeNode *parent, Turn turn);
+    /**
+     * @brief Creates a node from a parent’s engine-based position.
+     *        The parent's engine is cloned. Then we apply one partial move if needed externally
+     *        (though in ExpandNode we usually do it).
+     */
+    MonteCarloTreeNode(const CheckersEngine& engine, MonteCarloTreeNode* parent);
 
     ~MonteCarloTreeNode();
 
-    //------------------------------------------------------------------------------//
-    //                                Public Methods                                //
-    //------------------------------------------------------------------------------//
-
+    /**
+     * @brief A standard UCT formula: (score_ / visits_) + c* sqrt( ln(parent.visits_)/ visits_ )
+     */
     f64 UctScore() const;
 
-    //------------------------------------------------------------------------------//
-    //                               Public Variables                               //
-    //------------------------------------------------------------------------------//
+    public:
+    // MCTS accumulators
+    u64 visits_{0};
+    f64 score_{0};
 
-    u64 visits_ = 0;  // Number of times the node has been visited
-    f64 score_  = 0;  // Score of the node
-    Turn turn_;
+    // The engine that fully represents this node’s position
+    CheckersEngine engine_;
 
-    private:
-    //------------------------------------------------------------------------------//
-    //                                Private Methods                               //
-    //------------------------------------------------------------------------------//
+    // Link to parent node
+    MonteCarloTreeNode* parent_{nullptr};
 
-    //------------------------------------------------------------------------------//
-    //                               Private Variables                              //
-    //------------------------------------------------------------------------------//
-    Board board_{};               // Board state of the node
-    MonteCarloTreeNode *parent_;  // Parent node of the current node
-    std::unordered_map<move_t,
-                       MonteCarloTreeNode *> children_;  // Map of moves to child nodes
-
-    friend MonteCarloTree;
+    // Map of moves => child
+    std::unordered_map<checkers::move_t, MonteCarloTreeNode*> children_;
 };
 
 }  // namespace checkers::mcts
 
 #include "monte_carlo_tree.tpp"
 
-#endif
+#endif  // MCTS_CHECKERS_INCLUDE_MCTS_MONTE_CARLO_TREE_HPP_

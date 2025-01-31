@@ -19,7 +19,7 @@ struct CPUMoveSelImpl {
     static std::vector<checkers::move_t> SelectBestMoves(
         const std::vector<BoardType>& boards, const std::vector<checkers::move_t>& moves,
         const std::vector<u8>& move_counts, const std::vector<checkers::move_flags_t>& capture_masks,
-        const std::vector<checkers::move_flags_t>& per_board_flags, const std::vector<u8>& seeds
+        const std::vector<checkers::move_flags_t>& per_board_flags, std::vector<u32>& seeds
     )
     {
         return checkers::cpu::launchers::HostSelectBestMoves(
@@ -31,7 +31,7 @@ struct CPUMoveSelImpl {
 
     static void SetPiece(BoardType& board, checkers::board_index_t idx, char pieceType)
     {
-        board.setPieceAt(idx, pieceType);
+        board.SetPieceAt(idx, pieceType);
     }
 };
 
@@ -44,7 +44,7 @@ struct GPUMoveSelImpl {
     static std::vector<checkers::move_t> SelectBestMoves(
         const std::vector<BoardType>& boards, const std::vector<checkers::move_t>& moves,
         const std::vector<u8>& move_counts, const std::vector<checkers::move_flags_t>& capture_masks,
-        const std::vector<checkers::move_flags_t>& per_board_flags, const std::vector<u8>& seeds
+        const std::vector<checkers::move_flags_t>& per_board_flags, std::vector<u32>& seeds
     )
     {
         return checkers::gpu::launchers::HostSelectBestMoves(
@@ -56,7 +56,7 @@ struct GPUMoveSelImpl {
 
     static void SetPiece(BoardType& board, checkers::board_index_t idx, char pieceType)
     {
-        board.setPieceAt(idx, pieceType);
+        board.SetPieceAt(idx, pieceType);
     }
 };
 
@@ -83,7 +83,7 @@ TYPED_TEST(MoveSelectionTest, NoBoards)
     std::vector<u8> move_counts;
     std::vector<checkers::move_flags_t> capture_masks;
     std::vector<checkers::move_flags_t> per_board_flags;
-    std::vector<u8> seeds;
+    std::vector<u32> seeds;
 
     auto best = TypeParam::SelectBestMoves(boards, moves, move_counts, capture_masks, per_board_flags, seeds);
     EXPECT_TRUE(best.empty());
@@ -122,7 +122,7 @@ TYPED_TEST(MoveSelectionTest, SingleBoardSingleMove)
     std::vector<checkers::move_flags_t> perBoardFlags(1, 0);
 
     // Seeds vector has exactly 1 element
-    std::vector<u8> seeds{(u8)293};
+    std::vector<u32> seeds{(u8)293};
 
     auto best = TypeParam::SelectBestMoves(boards, allMoves, moveCounts, captureMasks, perBoardFlags, seeds);
 
@@ -163,7 +163,7 @@ TYPED_TEST(MoveSelectionTest, SingleBoardMultipleMoves)
     std::vector<checkers::move_flags_t> captureMasks(totalSquares, 0);
     std::vector<checkers::move_flags_t> perBoardFlags(1, 0);
 
-    std::vector<u8> seeds(1, (u8)0);
+    std::vector<u32> seeds(1, (u8)0);
 
     static constexpr u8 kFirstSeed = (u8)93;
 
@@ -221,7 +221,7 @@ TYPED_TEST(MoveSelectionTest, CaptureMoveIsSelectedOverNonCaptureMove)
     std::vector<checkers::move_flags_t> perBoardFlags(1, 0);
     perBoardFlags[0] |= (1 << checkers::MoveFlagsConstants::kCaptureFound);
 
-    std::vector<u8> seeds(1, (u8)255);
+    std::vector<u32> seeds(1, (u8)255);
 
     auto best = TypeParam::SelectBestMoves(boards, allMoves, moveCounts, captureMasks, perBoardFlags, seeds);
 
@@ -272,7 +272,7 @@ TYPED_TEST(MoveSelectionTest, OnlyCaptureMovesAreSelectedWhenMultipleCapturesAva
     std::vector<checkers::move_flags_t> perBoardFlags(1, 0);
     perBoardFlags[0] |= (1 << checkers::MoveFlagsConstants::kCaptureFound);
 
-    std::vector<u8> seeds(1, (u8)255);
+    std::vector<u32> seeds(1, (u8)255);
 
     auto best = TypeParam::SelectBestMoves(boards, allMoves, moveCounts, captureMasks, perBoardFlags, seeds);
 

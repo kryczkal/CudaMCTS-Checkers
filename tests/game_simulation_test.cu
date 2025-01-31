@@ -1,4 +1,6 @@
 #include <gtest/gtest.h>
+#include <algorithm>
+#include <cassert>
 #include <cmath>
 #include <iostream>
 #include <vector>
@@ -21,7 +23,7 @@ struct CPUSimImpl {
     static BoardType MakeBoard() { return BoardType{}; }
     static void SetPiece(BoardType& board, checkers::board_index_t idx, char pieceType)
     {
-        board.setPieceAt(idx, pieceType);
+        board.SetPieceAt(idx, pieceType);
     }
 
     // For the "SimulationTest"
@@ -43,7 +45,7 @@ struct GPUSimImpl {
     static BoardType MakeBoard() { return BoardType{}; }
     static void SetPiece(BoardType& board, checkers::board_index_t idx, char pieceType)
     {
-        board.setPieceAt(idx, pieceType);
+        board.SetPieceAt(idx, pieceType);
     }
 
     // For the "SimulationTest"
@@ -316,4 +318,168 @@ TYPED_TEST(SimulationTest, NonZeroScore1)
 
     std::cout << "[SimulationTest:NonZeroScore1] win ratio = " << outcomes[0].score / outcomes[0].n_simulations
               << std::endl;
+}
+
+//////////////////////////////////////////////////////////////////////////////////
+//        3) Decreasing One Side's Pieces => Increasing Opponent's Win Ratio     //
+//////////////////////////////////////////////////////////////////////////////////
+
+TYPED_TEST(SimulationTest, DecreasingPieceCountIncreasesWinRatio)
+{
+    using ImplType = TypeParam;
+
+    // We'll create three scenarios:
+    //   Scenario A: White has 8 pieces, Black has 8 pieces
+    //   Scenario B: White has 8 pieces, Black has 4 pieces
+    //   Scenario C: White has 8 pieces, Black has 2 pieces
+    //
+    // In all scenarios, White moves first. With more simulations, we expect
+    // White's win rate to increase as Black's piece count decreases.
+
+    std::vector<checkers::SimulationParam> params;
+    params.reserve(3);
+
+    auto MakeParam = [&](int white_count, int black_count) {
+        checkers::SimulationParam p{};
+        // Place "whiteCount" pieces for White in the top half of the 8 indexes [24..31]
+        // Place "blackCount" pieces for Black in the bottom half of the 8 indexes [0..7]
+        // We use simple loops to set bits for the correct number of squares.
+
+        // White squares [24..31]
+        for (checkers::board_index_t idx = 24; idx < 24 + white_count; ++idx) {
+            p.white |= (1u << idx);
+        }
+        // Black squares [0..(blackCount-1)]
+        for (checkers::board_index_t idx = 0; idx < static_cast<checkers::board_index_t>(black_count); ++idx) {
+            p.black |= (1u << idx);
+        }
+
+        // White to move
+        p.start_turn = 0;
+        // Use a larger simulation count for stability
+        p.n_simulations = 1000;
+        return p;
+    };
+
+    // Build scenarios
+    params.push_back(MakeParam(8, 8));
+    params.push_back(MakeParam(8, 7));
+    params.push_back(MakeParam(8, 6));
+    params.push_back(MakeParam(8, 5));
+    params.push_back(MakeParam(8, 4));
+    params.push_back(MakeParam(8, 3));
+    params.push_back(MakeParam(8, 2));
+
+    // We'll allow a moderate iteration limit so the game can progress.
+    int max_iterations = 200;
+    auto results       = ImplType::SimulateCheckersGames(params, max_iterations);
+    ASSERT_EQ(results.size(), 7u);
+
+    // Fraction of wins for White in each scenario
+    std::vector<double> fractions;
+    fractions.reserve(7);
+
+    for (auto& out : results) {
+        double fraction_white_wins = out.score / out.n_simulations;
+        fractions.push_back(fraction_white_wins);
+        std::cout << "WhiteWinFraction = " << fraction_white_wins << std::endl;
+    }
+
+    // Expect that scenario B > scenario A, and scenario C > scenario B
+    // (i.e., decreasing Black's pieces should raise White's win fraction).
+    for (int i = 1; i < fractions.size(); i++) {
+        EXPECT_GT(fractions[i], fractions[i - 1]);
+    }
+}
+
+//////////////////////////////////////////////////////////////////////////////////
+//               4) Three Different Advantage Setups => Clear Favorite          //
+//////////////////////////////////////////////////////////////////////////////////
+
+TYPED_TEST(SimulationTest, AdvantageousSetups)
+{
+    using ImplType = TypeParam;
+
+    // We'll build three scenarios:
+    // 1) White has 8 pieces vs Black has 2 pieces. White to move => White favored.
+    // 2) White has 2 pieces vs Black has 8 pieces. Black to move => Black favored.
+    // 3) White has 4 kings vs Black has 4 normal pieces. White to move => White favored.
+    //
+    // We'll run each scenario with enough simulations and ensure
+    // the favored side's winning fraction is clearly above/below a threshold.
+
+    std::vector<checkers::SimulationParam> params;
+    params.reserve(3);
+
+    {
+        // Scenario 1: White favored
+        checkers::SimulationParam s1{};
+        // White squares [24..31], but we only place 8 from [24..31].
+        for (checkers::board_index_t idx = 24; idx < 32; ++idx) {
+            s1.white |= (1u << idx);
+        }
+        // Black squares [0..1]
+        s1.black |= (1u << 0);
+        s1.black |= (1u << 1);
+
+        // White moves first
+        s1.start_turn = 0;
+        // More simulations to reduce randomness
+        s1.n_simulations = 1000;
+        params.push_back(s1);
+    }
+
+    {
+        // Scenario 2: Black favored
+        checkers::SimulationParam s2{};
+        // White squares [24..25], only 2 white pieces
+        s2.white |= (1u << 24);
+        s2.white |= (1u << 25);
+
+        // Black squares [0..7]
+        for (checkers::board_index_t idx = 0; idx < 8; ++idx) {
+            s2.black |= (1u << idx);
+        }
+        // Black moves first
+        s2.start_turn    = 1;
+        s2.n_simulations = 1000;
+        params.push_back(s2);
+    }
+
+    {
+        // Scenario 3: White has 4 kings vs Black has 4 normal pieces.
+        checkers::SimulationParam s3{};
+        // White squares [24..27], set them as kings as well
+        for (checkers::board_index_t idx = 28; idx < 32; ++idx) {
+            s3.white |= (1u << idx);
+            s3.king |= (1u << idx);  // Make them kings
+        }
+        // Black squares [0..3], normal pieces
+        for (checkers::board_index_t idx = 0; idx < 3; ++idx) {
+            s3.black |= (1u << idx);
+        }
+
+        // White moves first
+        s3.start_turn    = 0;
+        s3.n_simulations = 1000;
+        params.push_back(s3);
+    }
+
+    int max_iterations = 200;
+    auto results       = ImplType::SimulateCheckersGames(params, max_iterations);
+    ASSERT_EQ(results.size(), 3u);
+
+    // Calculate White's fraction of wins in each scenario
+    double fractionScenario1 = results[0].score / results[0].n_simulations;
+    double fractionScenario2 = results[1].score / results[1].n_simulations;
+    double fractionScenario3 = results[2].score / results[2].n_simulations;
+
+    std::cout << "[AdvantageousSetups] Scenario1(White favored) WhiteWinFrac  = " << fractionScenario1 << std::endl;
+    std::cout << "[AdvantageousSetups] Scenario2(Black favored) WhiteWinFrac  = " << fractionScenario2 << std::endl;
+    std::cout << "[AdvantageousSetups] Scenario3(White favored Kings) WhiteWinFrac = " << fractionScenario3
+              << std::endl;
+
+    EXPECT_GT(fractionScenario1, 0.7) << "White should be strongly favored with 8 vs 2 pieces";
+    EXPECT_GT(fractionScenario2, 0.7) << "Black should dominate with 8 vs 2 pieces and the first move";
+    EXPECT_GT(fractionScenario3, 0.7) << "White with 4 kings vs 4 normal black pieces should have a strong edge";
 }

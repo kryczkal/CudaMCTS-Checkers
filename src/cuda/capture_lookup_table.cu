@@ -29,5 +29,8 @@ void InitializeCaptureLookupTable()
         d_kCaptureLookUpTable, flatTable.data(),
         sizeof(board_t) * BoardConstants::kBoardSize * BoardConstants::kBoardSize
     ));
+
+    is_initialized = true;
 }
+
 }  // namespace checkers::gpu::apply_move

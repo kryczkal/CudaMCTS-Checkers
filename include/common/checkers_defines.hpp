@@ -8,7 +8,7 @@
 
 namespace checkers
 {
-static constexpr bool kTrueRandom = false;
+static constexpr bool kTrueRandom = true;
 static constexpr u32 kSeed        = 0x12345678;
 
 /////////////////////////////////// Types ////////////////////////////////////
@@ -93,8 +93,9 @@ struct SimulationParam {
  */
 struct MoveGenResult {
     // We track 32 squares, with up to kNumMaxMovesPerPiece = 13 possible moves per piece
-    static constexpr size_t kTotalSquares  = BoardConstants::kBoardSize;
-    static constexpr size_t kMovesPerPiece = kNumMaxMovesPerPiece;
+    static constexpr u64 kMaxPiecesToTrack = BoardConstants::kBoardSize;
+    static constexpr u64 kMovesPerPiece    = kNumMaxMovesPerPiece;
+    static constexpr u64 kMaxTotalMoves    = kMaxPiecesToTrack * kMovesPerPiece;
 
     // Flattened array of moves: size 32*kMovesPerPiece
     std::vector<move_t> h_moves;
@@ -106,9 +107,9 @@ struct MoveGenResult {
     std::vector<move_flags_t> h_per_board_flags;
 
     MoveGenResult()
-        : h_moves(kTotalSquares * kMovesPerPiece, kInvalidMove),
-          h_move_counts(kTotalSquares, 0),
-          h_capture_masks(kTotalSquares, 0),
+        : h_moves(kMaxPiecesToTrack * kMovesPerPiece, kInvalidMove),
+          h_move_counts(kMaxPiecesToTrack, 0),
+          h_capture_masks(kMaxPiecesToTrack, 0),
           h_per_board_flags(1, 0)
     {
     }

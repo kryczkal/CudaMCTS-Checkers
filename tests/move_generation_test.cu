@@ -32,7 +32,7 @@ struct CPUMoveGenImpl {
 
     static void SetPiece(BoardType &board, checkers::board_index_t idx, char pieceType)
     {
-        board.setPieceAt(idx, pieceType);
+        board.SetPieceAt(idx, pieceType);
     }
 
     static void SetBoardFromU32(BoardType &board, u32 white, u32 black, u32 kings)
@@ -58,7 +58,7 @@ struct GPUMoveGenImpl {
 
     static void SetPiece(BoardType &board, checkers::board_index_t idx, char pieceType)
     {
-        board.setPieceAt(idx, pieceType);
+        board.SetPieceAt(idx, pieceType);
     }
 
     static void SetBoardFromU32(BoardType &board, u32 white, u32 black, u32 kings)

@@ -24,7 +24,7 @@ struct Board {
      * @brief Helper to set a piece.
      *        'W' -> white, 'B' -> black, 'K' -> king flag.
      */
-    void setPieceAt(board_index_t idx, char pieceType)
+    void SetPieceAt(board_index_t idx, char pieceType)
     {
         switch (pieceType) {
             case 'W':
@@ -38,6 +38,22 @@ struct Board {
                 break;
             default:
                 break;
+        }
+    }
+
+    void CreateStandard()
+    {
+        white = 0;
+        black = 0;
+        kings = 0;
+
+        // place black pieces on squares 0..11
+        for (int i = 0; i < 12; i++) {
+            black |= (1U << i);
+        }
+        // place white pieces on squares 20..31
+        for (int i = 20; i < 32; i++) {
+            white |= (1U << i);
         }
     }
 };

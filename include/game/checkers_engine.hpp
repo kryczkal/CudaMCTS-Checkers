@@ -1,11 +1,8 @@
 #ifndef MCTS_CHECKERS_INCLUDE_GAME_CHECKERS_ENGINE_HPP_
 #define MCTS_CHECKERS_INCLUDE_GAME_CHECKERS_ENGINE_HPP_
 
-#include <string>
-#include <vector>
 #include "common/checkers_defines.hpp"
 #include "cpu/board.hpp"
-#include "mcts/monte_carlo_tree.hpp"
 
 namespace checkers
 {
@@ -16,8 +13,14 @@ namespace checkers
 enum class GameResult { kInProgress = 0, kWhiteWin, kBlackWin, kDraw };
 
 /**
- * @brief The CheckersEngine manages a single board position, current turn,
- *        applying moves, generating moves, and checking for terminal conditions.
+ * @brief The CheckersEngine manages a single board position and the current turn,
+ *        applying moves (including multi-captures), generating moves, and detecting
+ *        terminal outcomes such as a forced win, loss, or draw.
+ *
+ * This version removes any fields like `last_moves_` and `has_no_moves_`. Instead,
+ * the engine queries moves on-demand, applies partial or single-jump moves,
+ * and handles multi-capturing by not switching the side if a piece can still capture.
+ * We also track a 'non-reversible' counter for the 40-move draw rule (some variants use 50).
  */
 class CheckersEngine
 {
@@ -38,74 +41,70 @@ class CheckersEngine
     checkers::Turn GetCurrentTurn() const;
 
     /**
-     * @brief Generates all moves for the current side (CPU-based by default).
-     *        If no moves are found, sets an internal flag indicating "no moves".
+     * @brief Checks if no more moves are possible OR some immediate winning/draw condition
+     *        is triggered. If so, we call it a terminal position for MCTS or any game logic.
      */
-    void GenerateMovesCPU();
+    bool IsTerminal() const;
 
     /**
-     * @brief Generates all moves for the current side (GPU-based).
+     * @brief Returns the full game result (InProgress, WhiteWin, BlackWin, or Draw).
+     *        If in progress, returns kInProgress.
      */
-    void GenerateMovesGPU();
+    GameResult CheckGameResult();
 
     /**
-     * @brief Returns a reference to the aggregated move generation results.
-     */
-    const checkers::MoveGenResult &GetLastMoveGenResult() const;
-
-    /**
-     * @brief Checks if the internal flag indicates "no moves".
-     */
-    bool HasNoMoves() const;
-
-    /**
-     * @brief Applies a move for the current side. Optionally validates if the move is legal.
+     * @brief Generates all single-step or single-jump moves for the current side.
+     *        This does NOT do multi-capture sequences in one go. Instead, each jump
+     *        is treated as a separate move. If there's a mandatory capture, we filter out
+     *        non-capturing moves from the generation.
      *
-     * @param move       The move to be applied (encoded from->to).
-     * @param do_validate If true, checks if the move is valid among the previously generated moves.
-     * @return True if successfully applied, false if invalid or no moves left.
+     * @return A vector of possible single-move expansions (encoded from->to in 16 bits).
      */
-    bool ApplyMove(checkers::move_t move, bool do_validate = false);
+    MoveGenResult GenerateMoves();
 
     /**
-     * @brief Switches to the next side to move.
-     *        Contains logic to see if there's still a capturing chain, etc.
+     * @brief Applies a move for the current side. If it is a capture, checks if the same piece
+     *        can continue capturing. Promotion is applied after the chain completes (or after
+     *        each jump, depending on your rules). The turn is switched only if the chain is done.
+     *
+     * @param mv The single jump or step to be applied.
+     * @return True if the move was valid and got applied, false if invalid or no piece belongs to side, etc.
      */
-    void SwitchTurnIfNeeded(checkers::move_t last_move);
-
-    /**
-     * @brief Checks if the game is over, returning the final outcome if so.
-     */
-    GameResult CheckGameResult() const;
-
-    /**
-     * @brief Sets a "non-reversible" count or increments it to detect draws by 40 moves without captures/king moves.
-     */
-    void UpdateNonReversibleCount(bool was_capture, checkers::board_index_t from_sq);
-
-    /**
-     * @brief Resets the non-reversible move counter to 0.
-     */
-    void ResetNonReversibleCount();
+    bool ApplyMove(move_t mv, bool validate);
 
     private:
     checkers::cpu::Board board_;
     checkers::Turn current_turn_;
-    checkers::MoveGenResult last_moves_;
-    bool has_no_moves_{false};
+    GameResult game_result_ = GameResult::kInProgress;
+
+    /**
+     * @brief Keeps track of non-reversible moves for the 40-move draw rule.
+     *        Increment only if move is by a king and is not capturing.
+     *        Reset to 0 if a capture or non-king moves.
+     */
     u8 non_reversible_count_{0};
 
     /**
-     * @brief Validates if a move is in the last-generated list (and, if captures exist, is actually a capture).
+     * @brief Internal function to check if we can continue capturing from the piece
+     *        that just jumped to 'to_sq'. If so, do NOT switch turn. Otherwise, switch it.
      */
-    bool IsMoveValid(checkers::move_t mv) const;
+    bool CheckAndMaybeContinueCapture(checkers::move_t last_move);
 
     /**
-     * @brief Finds if the move is a capture by checking the capture mask.
+     * @brief Called after each move or chain to do king promotions.
      */
-    bool IsCaptureMove(checkers::move_t mv) const;
+    void HandlePromotions();
+
+    /**
+     * @brief Called after each single jump. If the jump was capturing a piece,
+     *        we reset the non-reversible counter. Otherwise, if it was a king move
+     *        that didn't capture, we increment the counter.
+     *
+     * @param was_capture True if the last jump was capturing.
+     * @param from_sq The 'from' part of the move to see if it was a king piece.
+     */
+    void UpdateNonReversibleCount(bool was_capture, checkers::board_index_t from_sq);
 };
 
 }  // namespace checkers
-
 #endif  // MCTS_CHECKERS_INCLUDE_GAME_CHECKERS_ENGINE_HPP_

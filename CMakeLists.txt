@@ -46,8 +46,11 @@ target_compile_options(${PROJECT_LIB_NAME} PUBLIC
 )
 
 ################################# Executable Target ############################
-add_executable(${PROJECT_NAME} main.cpp)
+add_executable(${PROJECT_NAME} main.cu)
 target_link_libraries(${PROJECT_NAME} PRIVATE ${PROJECT_LIB_NAME})
 
 ################################ Google Tests ################################
 add_subdirectory(tests)
+
+# TODO
+file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/tests/game_histories DESTINATION ${CMAKE_CURRENT_BINARY_DIR})

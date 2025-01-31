@@ -3,14 +3,25 @@
 
 #include "cassert"
 #include "common/checkers_defines.hpp"
+#include "iostream"
 
 namespace checkers::gpu
 {
 
-static __device__ __forceinline__ void SimpleRand(u8& state)
+static __device__ __forceinline__ void SimpleRand(u32& state)
 {
-    state = state * 1664525u + 1013904223u;  // LCG formula
-    state = state & 0xFF;                    // Ensure it stays in the u8 range}
+    static constexpr u32 COEF1 = 36969;
+    static constexpr u32 COEF2 = 65535;
+    static constexpr u32 COEF3 = 17;
+    static constexpr u32 COEF4 = 13;
+
+    state ^= state << 13;
+    state *= COEF1;
+    state += COEF2;
+    state ^= state >> 7;
+    state *= COEF3;
+    state += COEF4;
+    state ^= state << 17;
 }
 
 template <typename UnsignedFlagType>

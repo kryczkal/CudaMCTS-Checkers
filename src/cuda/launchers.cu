@@ -65,7 +65,7 @@ std::vector<MoveGenResult> HostGenerateMoves(const std::vector<GpuBoard>& boards
     //--------------------------------------------------------------------------
     // Allocate device memory for results
     //--------------------------------------------------------------------------
-    const size_t kTotalSquares       = MoveGenResult::kTotalSquares;
+    const size_t kTotalSquares       = MoveGenResult::kMaxPiecesToTrack;
     const size_t kMovesPerPiece      = MoveGenResult::kMovesPerPiece;
     const size_t kTotalMovesPerBoard = kTotalSquares * kMovesPerPiece;
     const size_t kTotalMoves         = n_boards * kTotalMovesPerBoard;
@@ -278,7 +278,7 @@ std::vector<GpuBoard> HostApplyMoves(const std::vector<GpuBoard>& boards, const 
 std::vector<move_t> HostSelectBestMoves(
     const std::vector<GpuBoard>& boards, const std::vector<move_t>& moves, const std::vector<u8>& move_counts,
     const std::vector<move_flags_t>& capture_masks, const std::vector<move_flags_t>& per_board_flags,
-    const std::vector<u8>& seeds
+    std::vector<u32>& seeds
 )
 {
     using namespace checkers;
@@ -319,7 +319,7 @@ std::vector<move_t> HostSelectBestMoves(
     u8* d_move_counts               = nullptr;
     move_flags_t* d_capture_masks   = nullptr;
     move_flags_t* d_per_board_flags = nullptr;
-    u8* d_seeds                     = nullptr;
+    u32* d_seeds                    = nullptr;
     move_t* d_best_moves            = nullptr;
 
     CHECK_CUDA_ERROR(cudaMalloc(&d_whites, n_boards * sizeof(u32)));
@@ -329,7 +329,7 @@ std::vector<move_t> HostSelectBestMoves(
     CHECK_CUDA_ERROR(cudaMalloc(&d_move_counts, n_boards * totalSquares * sizeof(u8)));
     CHECK_CUDA_ERROR(cudaMalloc(&d_capture_masks, n_boards * totalSquares * sizeof(move_flags_t)));
     CHECK_CUDA_ERROR(cudaMalloc(&d_per_board_flags, n_boards * sizeof(move_flags_t)));
-    CHECK_CUDA_ERROR(cudaMalloc(&d_seeds, n_boards * sizeof(u8)));
+    CHECK_CUDA_ERROR(cudaMalloc(&d_seeds, n_boards * sizeof(u32)));
     CHECK_CUDA_ERROR(cudaMalloc(&d_best_moves, n_boards * sizeof(move_t)));
 
     //--------------------------------------------------------------------------
@@ -349,7 +349,7 @@ std::vector<move_t> HostSelectBestMoves(
     CHECK_CUDA_ERROR(
         cudaMemcpy(d_per_board_flags, per_board_flags.data(), n_boards * sizeof(move_flags_t), cudaMemcpyHostToDevice)
     );
-    CHECK_CUDA_ERROR(cudaMemcpy(d_seeds, seeds.data(), n_boards * sizeof(u8), cudaMemcpyHostToDevice));
+    CHECK_CUDA_ERROR(cudaMemcpy(d_seeds, seeds.data(), n_boards * sizeof(u32), cudaMemcpyHostToDevice));
 
     // Initialize d_best_moves to invalid
     std::vector<move_t> initBest(n_boards, kInvalidMove);
@@ -392,6 +392,8 @@ std::vector<move_t> HostSelectBestMoves(
 
 std::vector<SimulationResult> HostSimulateCheckersGames(const std::vector<SimulationParam>& params, int max_iterations)
 {
+    apply_move::InitializeCaptureLookupTable();
+
     const u64 n_simulation_counts = static_cast<u64>(params.size());
 
     u64 n_total_simulations = 0;
@@ -421,11 +423,11 @@ std::vector<SimulationResult> HostSimulateCheckersGames(const std::vector<Simula
     }
 
     // Generate random seeds for each of the total simulations
-    std::vector<u8> h_seeds(n_total_simulations);
+    std::vector<u32> h_seeds(n_total_simulations);
     {
         std::mt19937 rng(kTrueRandom ? std::random_device{}() : kSeed);
         for (u64 i = 0; i < n_total_simulations; i++) {
-            h_seeds[i] = static_cast<u8>(rng() & 0xFF);
+            h_seeds[i] = static_cast<u32>(rng());
         }
     }
 
@@ -446,7 +448,7 @@ std::vector<SimulationResult> HostSimulateCheckersGames(const std::vector<Simula
     CHECK_CUDA_ERROR(cudaMalloc(&d_startTurns, n_simulation_counts * sizeof(u8)));
     CHECK_CUDA_ERROR(cudaMalloc(&d_simCounts, n_simulation_counts * sizeof(u64)));
     CHECK_CUDA_ERROR(cudaMalloc(&d_scores, n_total_simulations * sizeof(u8)));
-    CHECK_CUDA_ERROR(cudaMalloc(&d_seeds, n_total_simulations * sizeof(u8)));
+    CHECK_CUDA_ERROR(cudaMalloc(&d_seeds, n_total_simulations * sizeof(u32)));
 
     //--------------------------------------------------------------------------
     // Copy host data to device
@@ -470,7 +472,7 @@ std::vector<SimulationResult> HostSimulateCheckersGames(const std::vector<Simula
     CHECK_CUDA_ERROR(cudaMemset(d_scores, 0, n_total_simulations * sizeof(u8)));
 
     // Seeds
-    CHECK_CUDA_ERROR(cudaMemcpy(d_seeds, h_seeds.data(), n_total_simulations * sizeof(u8), cudaMemcpyHostToDevice));
+    CHECK_CUDA_ERROR(cudaMemcpy(d_seeds, h_seeds.data(), n_total_simulations * sizeof(u32), cudaMemcpyHostToDevice));
 
     //--------------------------------------------------------------------------
     // Launch the simulation kernel

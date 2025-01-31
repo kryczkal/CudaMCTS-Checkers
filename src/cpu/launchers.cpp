@@ -74,7 +74,7 @@ std::vector<Board> HostApplyMoves(const std::vector<Board> &boards, const std::v
 std::vector<move_t> HostSelectBestMoves(
     const std::vector<Board> &boards, const std::vector<move_t> &moves, const std::vector<u8> &move_counts,
     const std::vector<move_flags_t> &capture_masks, const std::vector<move_flags_t> &per_board_flags,
-    const std::vector<u8> &seeds
+    std::vector<u32> &seeds
 )
 {
     size_t n_boards = boards.size();
@@ -94,7 +94,7 @@ std::vector<move_t> HostSelectBestMoves(
         const u8 *board_counts             = &move_counts[b * total_squares];
         const move_flags_t *board_captures = &capture_masks[b * total_squares];
         move_flags_t flags                 = per_board_flags[b];
-        u8 local_seed                      = seeds[b];
+        u32 local_seed                     = seeds[b];
 
         best_moves[b] = move_selection::SelectBestMoveForSingleBoard(
             boards[b].white, boards[b].black, boards[b].kings, board_moves, board_counts, board_captures, flags,
@@ -151,7 +151,7 @@ std::vector<SimulationResult> HostSimulateCheckersGames(const std::vector<Simula
         // For each simulation
         for (u64 s = 0; s < n_sims; s++) {
             u64 sim_index = offset + s;
-            u8 seed_ref   = seeds[sim_index];
+            u32 seed_ref  = seeds[sim_index];
 
             // We'll copy the board so we can mutate it
             board_t white_board        = w_bits;

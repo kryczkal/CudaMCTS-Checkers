@@ -6,6 +6,7 @@
 #include "common/checkers_defines.hpp"
 #include "cuda_runtime.h"
 #include "device_launch_parameters.h"
+#include "types.hpp"
 
 namespace checkers::gpu::move_gen
 {
@@ -322,7 +323,7 @@ __device__ __forceinline__ void TryDiagonal(
         WriteKingMove(ReadFlag(flags, kInvalidNextFlagIndex), capturing, next_idx);
 
         // Attempt a capture
-        flags |= (IsOnEdge<direction>(current_idx) | IsOnEdge<direction>(next_jump_idx) |
+        flags |= (IsOnEdge<direction>(current_idx) | IsOnEdge<direction>(next_idx) |
                   !IsPieceAt(enemy_pieces, next_idx) | IsPieceAt(all_pieces, next_jump_idx))
                  << kInvalidJumpFlagIndex;
         const bool can_capture = !ReadFlag(flags, kInvalidJumpFlagIndex);

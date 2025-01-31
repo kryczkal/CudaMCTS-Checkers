@@ -167,7 +167,7 @@ static inline void TryDiagonal(
         WriteKingMove(ReadFlag(flags, kInvalidNextFlagIndex), has_captured_so_far, next_idx);
 
         // Attempt a capture
-        flags |= (IsOnEdge<direction>(current_idx) | IsOnEdge<direction>(next_jump_idx) |
+        flags |= (IsOnEdge<direction>(current_idx) | IsOnEdge<direction>(next_idx) |
                   !IsPieceAt(enemy_pieces, next_idx) | IsPieceAt(all_pieces, next_jump_idx))
                  << kInvalidJumpFlagIndex;
         const bool can_capture = !ReadFlag(flags, kInvalidJumpFlagIndex);
@@ -262,6 +262,44 @@ static inline void GenerateMovesForSinglePiece(
     }
 
     out_move_count = num_moves;
+}
+
+template <Turn turn>
+void GenerateMoves(
+    const board_t *d_whites, const board_t *d_blacks, const board_t *d_kings, move_t *d_moves, u8 *d_move_counts,
+    move_flags_t *d_move_capture_mask, move_flags_t *d_per_board_move_flags, const u64 n_boards
+)
+{
+    for (u64 i = 0; i < n_boards * 32ULL; i++) {
+        const u64 board_idx            = i / 32ULL;
+        const u64 figure_idx_int       = i % 32ULL;
+        const board_index_t figure_idx = static_cast<board_index_t>(figure_idx_int);
+
+        // Identify the output location(s) for this piece
+        // We have up to kNumMaxMovesPerPiece moves stored for each piece.
+        const u64 base_moves_idx =
+            (board_idx * BoardConstants::kBoardSize + figure_idx) * static_cast<u64>(kNumMaxMovesPerPiece);
+
+        move_t *out_moves_ptr          = &d_moves[base_moves_idx];
+        u8 *out_move_count_ptr         = &d_move_counts[board_idx * BoardConstants::kBoardSize + figure_idx];
+        move_flags_t *out_capture_mask = &d_move_capture_mask[board_idx * BoardConstants::kBoardSize + figure_idx];
+        move_flags_t &per_board_flags  = d_per_board_move_flags[board_idx];
+
+        // Clear the outputs for this piece
+        *out_move_count_ptr = 0;
+        *out_capture_mask   = 0;
+
+        // Retrieve the piece bitmasks for this board
+        board_t white_pieces = d_whites[board_idx];
+        board_t black_pieces = d_blacks[board_idx];
+        board_t kings        = d_kings[board_idx];
+
+        // Generate
+        GenerateMovesForSinglePiece<turn>(
+            figure_idx, white_pieces, black_pieces, kings, out_moves_ptr, *out_move_count_ptr, *out_capture_mask,
+            per_board_flags
+        );
+    }
 }
 
 }  // namespace checkers::cpu::move_gen

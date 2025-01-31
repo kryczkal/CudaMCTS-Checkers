@@ -15,7 +15,8 @@ namespace checkers
 namespace
 {
 static constexpr std::string kDumpBoardToken = "dump_board";
-}
+static constexpr std::string kSaveQuitToken  = "save_quit";
+}  // namespace
 
 CheckersGame::CheckersGame(const checkers::cpu::Board &initialBoard, checkers::Turn startTurn, checkers::Turn humanTurn)
     : human_turn_(humanTurn)
@@ -68,10 +69,10 @@ void CheckersGame::Play(const std::string &recordFile)
             );
 
             // Time-limited move
-            auto start               = std::chrono::steady_clock::now();
-            std::string notationMove = gui_->PromptForMove();
-            auto finish              = std::chrono::steady_clock::now();
-            float elapsed            = std::chrono::duration<float>(finish - start).count();
+            auto start                = std::chrono::steady_clock::now();
+            std::string notation_move = gui_->PromptForMove();
+            auto finish               = std::chrono::steady_clock::now();
+            float elapsed             = std::chrono::duration<float>(finish - start).count();
 
             if (elapsed > human_time_limit_) {
                 // Timeout => sideToMove loses
@@ -85,7 +86,7 @@ void CheckersGame::Play(const std::string &recordFile)
             }
 
             // Try applying move
-            auto [ok, msg] = AttemptMoveFromNotation(notationMove);
+            auto [ok, msg] = AttemptMoveFromNotation(notation_move);
             if (!ok) {
                 gui_->DisplayMessage("Invalid Move: " + msg);
                 continue;
@@ -97,14 +98,8 @@ void CheckersGame::Play(const std::string &recordFile)
             // AI logic
             gui_->DisplayMessage("AI is thinking...");
 
-            engine_->GenerateMovesCPU();
-            if (engine_->HasNoMoves()) {
-                // No moves => other side wins
-                if (side_to_move == checkers::Turn::kWhite) {
-                    res = GameResult::kBlackWin;
-                } else {
-                    res = GameResult::kWhiteWin;
-                }
+            auto moves = engine_->GenerateMoves();
+            if (engine_->CheckGameResult() != GameResult::kInProgress) {
                 break;
             }
 
@@ -189,6 +184,10 @@ std::pair<bool, std::string> CheckersGame::AttemptMoveFromNotation(const std::st
                     std::cout << "White: " << board.white << std::endl;
                     std::cout << "Black: " << board.black << std::endl;
                     std::cout << "Kings: " << board.kings << std::endl;
+                } else if (token == kSaveQuitToken) {
+                    SaveRecord("game_record.txt");
+                    std::cout << "Game record saved to game_record.txt\n";
+                    return {false, "Game saved."};
                 } else {
                     fields.push_back(token);
                 }

@@ -27,7 +27,7 @@ struct CPUImpl {
 
     static void SetPiece(BoardType& board, checkers::board_index_t idx, char pieceType)
     {
-        board.setPieceAt(idx, pieceType);
+        board.SetPieceAt(idx, pieceType);
     }
 };
 
@@ -48,7 +48,7 @@ struct GPUImpl {
 
     static void SetPiece(BoardType& board, checkers::board_index_t idx, char pieceType)
     {
-        board.setPieceAt(idx, pieceType);
+        board.SetPieceAt(idx, pieceType);
     }
 };
 

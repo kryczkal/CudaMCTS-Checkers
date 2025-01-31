@@ -75,7 +75,7 @@ __global__ void SimulateCheckersGames(
     __shared__ board_t s_blacks[kNumBoardsPerBlock];
     __shared__ board_t s_kings[kNumBoardsPerBlock];
     __shared__ u8 s_outcome[kNumBoardsPerBlock];
-    __shared__ u8 s_seed[kNumBoardsPerBlock];
+    __shared__ u32 s_seed[kNumBoardsPerBlock];
     __shared__ bool s_current_turn[kNumBoardsPerBlock];
     __shared__ u8 s_non_reversible[kNumBoardsPerBlock];
 
@@ -183,14 +183,13 @@ __global__ void SimulateCheckersGames(
             board_t b = s_blacks[kLocalBoardIndex];
             board_t k = s_kings[kLocalThreadInBoardIndex];
 
-            u8& localSeed = s_seed[kLocalBoardIndex];
+            u32& localSeed = s_seed[kLocalBoardIndex];
 
             // pick best move
             using checkers::gpu::move_selection::SelectBestMoveForSingleBoard;
             move_t chosen =
                 SelectBestMoveForSingleBoard(w, b, k, boardMoves, boardMoveCounts, boardCaptures, flags, localSeed);
 
-            s_seed[kLocalBoardIndex] = (u8)(localSeed + 13);
             if (chosen == kInvalidMove) {
                 // Current side cannot move => other side wins
                 s_outcome[kLocalBoardIndex] = !s_current_turn[kLocalBoardIndex] ? 2 : 1;
@@ -270,12 +269,11 @@ __global__ void SimulateCheckersGames(
                 u8* board_move_counts        = s_move_counts[kLocalBoardIndex];
                 move_flags_t* board_captures = s_capture_masks[kLocalBoardIndex];
                 move_flags_t flags           = s_per_board_flags[kLocalBoardIndex];
-                u8& local_seed               = s_seed[kLocalBoardIndex];
+                u32& local_seed              = s_seed[kLocalBoardIndex];
 
                 move_t chainMv = checkers::gpu::move_selection::SelectBestMoveForSingleBoard(
                     w, b, k, board_moves, board_move_counts, board_captures, flags, local_seed
                 );
-                s_seed[kLocalBoardIndex] = (u8)(local_seed + 7);
 
                 if (chainMv == kInvalidMove) {
                     s_chosen_move[kLocalBoardIndex] = chainMv;
