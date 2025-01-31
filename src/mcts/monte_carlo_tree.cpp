@@ -20,21 +20,12 @@ void MonteCarloTree::DescendTree(const move_t move)
 {
     auto it = root_->children_.find(move);
     if (it == root_->children_.end()) {
-        // If the child doesn't exist in the map, we have no expansion for that move
-        // or we didn't call ExpandNode. We can simply build a brand new root from that move
         assert(false && "Attempting to descend to a non-existent child!");
-        CheckersEngine newEngine(root_->engine_.GetBoard(), root_->engine_.GetCurrentTurn());
-        newEngine.ApplyMove(move, false);
-
-        MonteCarloTreeNode* newRoot = new MonteCarloTreeNode(newEngine, nullptr);
-        delete root_;
-        root_ = newRoot;
-        return;
     }
 
     MonteCarloTreeNode* child = it->second;
 
-    // Remove the chosen child from the parent's map so we can safely free siblings
+    // Remove the chosen child from the parent's map, so we can safely free siblings
     root_->children_.erase(it);
 
     // free all siblings:
@@ -73,10 +64,7 @@ checkers::move_t MonteCarloTree::Run(f32 time_seconds)
         }
 
         std::vector<MonteCarloTreeNode*> expanded = ExpandNode(node);
-        if (expanded.empty()) {
-            // The node was terminal. So no expansions
-            continue;
-        }
+        assert(!expanded.empty() && "ExpandNode returned empty nodes");
 
         now     = std::chrono::system_clock::now();
         elapsed = std::chrono::duration<float>(now - start).count();
