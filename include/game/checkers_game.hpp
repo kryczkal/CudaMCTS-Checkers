@@ -23,9 +23,9 @@ class ICheckersGui
 {
     public:
     virtual ~ICheckersGui() {}
-    virtual void DisplayBoard(const checkers::cpu::Board& board) = 0;
-    virtual void DisplayMessage(const std::string& msg)          = 0;
-    virtual std::string PromptForMove()                          = 0;
+    virtual void DisplayBoard(const checkers::cpu::Board& board, const checkers::move_t move) = 0;
+    virtual void DisplayMessage(const std::string& msg)                                       = 0;
+    virtual std::string PromptForMove()                                                       = 0;
 };
 
 /**
@@ -77,7 +77,7 @@ class CheckersGame
      * @brief Helper to parse a single user input line ("d2-e3" or "d2:f4:d6")
      *        and apply it to the engine. Returns success or failure with a message.
      */
-    std::pair<bool, std::string> AttemptMoveFromNotation(const std::string& move_line);
+    std::tuple<bool, std::string, move_t> AttemptMoveFromNotation(const std::string& move_line);
 
     /**
      * @brief Splits a multi-capture "d2:f4:d6" into partial moves and applies them in sequence.

@@ -15,7 +15,7 @@ class CliGui : public ICheckersGui
     public:
     virtual ~CliGui() {}
 
-    void DisplayBoard(const checkers::cpu::Board &board) override;
+    void DisplayBoard(const checkers::cpu::Board &board, const checkers::move_t move) override;
 
     void DisplayMessage(const std::string &msg) override;
 

@@ -51,7 +51,7 @@ void CheckersGame::PlayAiAi(const std::string &recordFile)
     }
 
     // Show initial board
-    gui_->DisplayBoard(engine_->GetBoard());
+    gui_->DisplayBoard(engine_->GetBoard(), kInvalidMove);
 
     while (true) {
         // Check if game ended
@@ -115,7 +115,7 @@ void CheckersGame::PlayAiAi(const std::string &recordFile)
             move_history_.push_back(move_string);
 
             gui_->DisplayMessage("AI plays " + move_string);
-            gui_->DisplayBoard(engine_->GetBoard());
+            gui_->DisplayBoard(engine_->GetBoard(), best_move);
         } else {
             // AI logic
             gui_->DisplayMessage("AI 2 is thinking...");
@@ -155,7 +155,7 @@ void CheckersGame::PlayAiAi(const std::string &recordFile)
             move_history_.push_back(move_string);
 
             gui_->DisplayMessage("AI 2 plays " + move_string);
-            gui_->DisplayBoard(engine_->GetBoard());
+            gui_->DisplayBoard(engine_->GetBoard(), best_move);
         }
     }
 
@@ -169,7 +169,7 @@ void CheckersGame::Play(const std::string &recordFile)
     }
 
     // Show initial board
-    gui_->DisplayBoard(engine_->GetBoard());
+    gui_->DisplayBoard(engine_->GetBoard(), kInvalidMove);
 
     while (true) {
         // Check if game ended
@@ -216,13 +216,13 @@ void CheckersGame::Play(const std::string &recordFile)
             }
 
             // Try applying move
-            auto [ok, msg] = AttemptMoveFromNotation(notation_move);
+            auto [ok, msg, move] = AttemptMoveFromNotation(notation_move);
             if (!ok) {
                 gui_->DisplayMessage("Invalid Move: " + msg);
                 continue;
             } else {
                 // Move was successful, display board
-                gui_->DisplayBoard(engine_->GetBoard());
+                gui_->DisplayBoard(engine_->GetBoard(), move);
             }
         } else {
             // AI logic
@@ -285,14 +285,14 @@ void CheckersGame::Play(const std::string &recordFile)
             move_history_.push_back(move_string);
 
             gui_->DisplayMessage("AI plays " + move_string);
-            gui_->DisplayBoard(engine_->GetBoard());
+            gui_->DisplayBoard(engine_->GetBoard(), best_move);
         }
     }
 
     SaveRecord(recordFile);
 }
 
-std::pair<bool, std::string> CheckersGame::AttemptMoveFromNotation(const std::string &move_line)
+std::tuple<bool, std::string, move_t> CheckersGame::AttemptMoveFromNotation(const std::string &move_line)
 {
     char delim = '-';
     if (move_line.find(':') != std::string::npos) {
@@ -317,7 +317,7 @@ std::pair<bool, std::string> CheckersGame::AttemptMoveFromNotation(const std::st
                 } else if (token == kSaveQuitToken) {
                     SaveRecord("game_record.txt");
                     std::cout << "Game record saved to game_record.txt\n";
-                    return {false, "Game saved."};
+                    return {false, "Game saved.", kInvalidMove};
                 } else {
                     fields.push_back(token);
                 }
@@ -326,7 +326,7 @@ std::pair<bool, std::string> CheckersGame::AttemptMoveFromNotation(const std::st
     }
 
     if (fields.size() < 2) {
-        return {false, "Less than two squares given."};
+        return {false, "Less than two squares given.", kInvalidMove};
     }
 
     // If more than 2 => multi-capture
@@ -349,11 +349,11 @@ std::pair<bool, std::string> CheckersGame::AttemptMoveFromNotation(const std::st
         }
         // Apply multi-capture
         if (!ApplyMultiCapture(fields)) {
-            return {false, "Invalid multi-capture."};
+            return {false, "Invalid multi-capture.", kInvalidMove};
         }
         // If success, store in moveHistory
         move_history_.push_back(move_line);
-        return {true, ""};
+        return {true, "", kInvalidMove};
     }
 
     // If exactly 2 fields => single step
@@ -361,7 +361,7 @@ std::pair<bool, std::string> CheckersGame::AttemptMoveFromNotation(const std::st
     checkers::board_index_t toIdx   = NotationToIndex(fields[1]);
     if (fromIdx >= checkers::BoardConstants::kBoardSize || toIdx >= checkers::BoardConstants::kBoardSize) {
         std::string msg = "Invalid square(s): from=" + fields[0] + ", to=" + fields[1];
-        return std::pair<bool, std::string>{false, msg};
+        return {false, msg, kInvalidMove};
     }
     std::cout << "From: " << static_cast<u32>(fromIdx) << ", To: " << static_cast<u32>(toIdx) << std::endl;
 
@@ -369,11 +369,11 @@ std::pair<bool, std::string> CheckersGame::AttemptMoveFromNotation(const std::st
     checkers::move_t mv = (fromIdx) | (toIdx << 8);
     bool ok             = engine_->ApplyMove(mv, true);
     if (!ok)
-        return {false, "Move not valid according to engine."};
+        return {false, "Move not valid according to engine.", kInvalidMove};
 
     // Add to record
     move_history_.push_back(move_line);
-    return {true, ""};
+    return {true, "", mv};
 }
 
 bool CheckersGame::ApplyMultiCapture(const std::vector<std::string> &fields)
@@ -470,7 +470,7 @@ bool CheckersGame::LoadGameRecord(const std::string &inputFile)
         std::string move_str;
         if (std::getline(ss, move_str)) {
             // Attempt to apply
-            auto [ok, msg] = AttemptMoveFromNotation(move_str);
+            auto [ok, msg, _] = AttemptMoveFromNotation(move_str);
             if (!ok) {
                 std::cerr << "Line parse fail: " << msg << "\nLine was: " << line << std::endl;
                 return false;

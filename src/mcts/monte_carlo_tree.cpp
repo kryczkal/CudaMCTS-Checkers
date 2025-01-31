@@ -143,22 +143,18 @@ MonteCarloTreeNode* MonteCarloTree::SelectNode()
 
 std::vector<MonteCarloTreeNode*> MonteCarloTree::ExpandNode(MonteCarloTreeNode* node)
 {
-    // If node is terminal, no expansions
+    // If node is terminal, return it and don't expand
     if (node->engine_.IsTerminal()) {
-        return {};
+        return {node};
     }
 
     // Gather possible single-jump or step moves
     MoveGenResult result = node->engine_.GenerateMoves();
-    if (!cpu::ReadFlag(result.h_per_board_flags[0], MoveFlagsConstants::kMoveFound)) {
-        return {};
-    }
-
-    // If the node already has children, we don't expand it again
-    if (!node->children_.empty()) {
-        // Already expanded
-        return {};
-    }
+    assert(
+        cpu::ReadFlag(result.h_per_board_flags[0], MoveFlagsConstants::kMoveFound) &&
+        "ExpandNode called on a node with no moves"
+    );
+    assert(node->children_.empty() && "ExpandNode called on a full expanded node");
 
     std::vector<MonteCarloTreeNode*> expanded_nodes;
     expanded_nodes.reserve(10);

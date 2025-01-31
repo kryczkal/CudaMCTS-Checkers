@@ -37,12 +37,15 @@ const std::string BLACK_PIECE  = "b";
 const std::string BLACK_KING   = "B";
 const std::string EMPTY_SQUARE = " ";
 
-void CliGui::DisplayBoard(const checkers::cpu::Board &board)
+void CliGui::DisplayBoard(const checkers::cpu::Board &board, const checkers::move_t move)
 {
     // Print column headers with padding
     std::cout << "\n    a   b   c   d   e   f   g   h\n";
 
     // Iterate through each row
+    const u8 from_sq = checkers::cpu::move_gen::DecodeMove<checkers::cpu::move_gen::MovePart::From>(move);
+    const u8 to_sq   = checkers::cpu::move_gen::DecodeMove<checkers::cpu::move_gen::MovePart::To>(move);
+
     for (int row = 0; row < 8; row++) {
         // Print horizontal separator before each row
         std::cout << "  +---+---+---+---+---+---+---+---+\n";
@@ -66,6 +69,13 @@ void CliGui::DisplayBoard(const checkers::cpu::Board &board)
             int cHalf = (r % 2 == 0) ? (col / 2) : ((col - 1) / 2);
             int idx   = r * 4 + cHalf;
 
+            if (idx == to_sq) {
+                std::cout << RED_BG;
+            }
+            if (idx == from_sq) {
+                std::cout << WHITE_BG;
+            }
+
             // Determine piece presence and type
             const bool is_white = cpu::ReadFlag(board.white, idx);
             const bool is_black = cpu::ReadFlag(board.black, idx);
@@ -78,17 +88,18 @@ void CliGui::DisplayBoard(const checkers::cpu::Board &board)
                     // Assign appropriate piece representation
                     piece = is_king ? WHITE_KING : WHITE_PIECE;
                     // Print white piece with color and padding
-                    std::cout << " " << piece << " " << "|";
+                    std::cout << " " << piece << " ";
                 } else if (is_black) {
                     // Assign appropriate piece representation
                     piece = is_king ? BLACK_KING : BLACK_PIECE;
                     // Print black piece with color and padding
-                    std::cout << " " << piece << " " << "|";
+                    std::cout << " " << piece << " ";
                 }
             } else {
                 // Empty playable square with white background and padding
-                std::cout << "   " << "|";
+                std::cout << "   ";
             }
+            std::cout << RESET << "|";
         }
 
         // Print row number at the end

@@ -44,7 +44,7 @@ class CheckersEngine
      * @brief Checks if no more moves are possible OR some immediate winning/draw condition
      *        is triggered. If so, we call it a terminal position for MCTS or any game logic.
      */
-    bool IsTerminal() const;
+    bool IsTerminal();
 
     /**
      * @brief Returns the full game result (InProgress, WhiteWin, BlackWin, or Draw).

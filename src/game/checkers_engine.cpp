@@ -20,10 +20,10 @@ checkers::cpu::Board CheckersEngine::GetBoard() const { return board_; }
 
 checkers::Turn CheckersEngine::GetCurrentTurn() const { return current_turn_; }
 
-bool CheckersEngine::IsTerminal() const
+bool CheckersEngine::IsTerminal()
 {
     // If the game result says it's not in progress, it's terminal
-    return (game_result_ != GameResult::kInProgress);
+    return (CheckGameResult() != GameResult::kInProgress);
 }
 
 GameResult CheckersEngine::CheckGameResult()
