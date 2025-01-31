@@ -31,6 +31,136 @@ void CheckersGame::SetAiTimeLimit(float seconds) { ai_time_limit_ = seconds; }
 
 void CheckersGame::SetGui(std::shared_ptr<ICheckersGui> gui) { gui_ = gui; }
 
+void CheckersGame::PlayAiAi(const std::string &recordFile)
+{
+    // TODO: Extract AI move logic to a separate function and Human move logic to another function
+    auto SquareToNotation = [&](checkers::board_index_t sq) {
+        int row       = sq / 4;
+        int colOffset = sq % 4;
+        int col       = (row % 2 == 0) ? (colOffset * 2) : (colOffset * 2 + 1);
+        int rank      = 8 - row;  // row=0 => rank=8
+        char file     = 'a' + col;
+        std::stringstream ss;
+        ss << file << rank;
+        return ss.str();
+    };  // TODO: Move this to a common place
+
+    if (!gui_) {
+        std::cerr << "No GUI/CLI interface is set. Exiting.\n";
+        return;
+    }
+
+    // Show initial board
+    gui_->DisplayBoard(engine_->GetBoard());
+
+    while (true) {
+        // Check if game ended
+        GameResult res = engine_->CheckGameResult();
+        if (res != GameResult::kInProgress) {
+            // Announce
+            std::string msg;
+            if (res == GameResult::kWhiteWin) {
+                msg = "White wins!";
+            } else if (res == GameResult::kBlackWin) {
+                msg = "Black wins!";
+            } else {
+                msg = "Draw!";
+            }
+            gui_->DisplayMessage("Game Over: " + msg);
+            break;
+        }
+
+        // Decide whose turn it is
+        checkers::Turn side_to_move = engine_->GetCurrentTurn();
+        bool is_first_ai            = (side_to_move == human_turn_);
+
+        // Prompt
+        if (is_first_ai) {
+            gui_->DisplayMessage("AI 1 is thinking...");
+
+            auto moves = engine_->GenerateMoves();
+            if (engine_->CheckGameResult() != GameResult::kInProgress) {
+                break;
+            }
+
+            // Start MCTS
+            auto start = std::chrono::steady_clock::now();
+            checkers::mcts::MonteCarloTree tree(engine_->GetBoard(), side_to_move);
+            float time_budget = ai_time_limit_;
+
+            checkers::move_t best_move = tree.Run(time_budget - 0.1f);  // reserve 0.1s for overhead
+            auto finish                = std::chrono::steady_clock::now();
+            float elapsed              = std::chrono::duration<float>(finish - start).count();
+
+            // Apply bestMove
+            bool success = engine_->ApplyMove(best_move, false);
+            if (!success) {
+                // No moves => lose
+                gui_->DisplayMessage("AI 1 move is invalid? (Probably a BUG) Forcing loss.");
+                if (side_to_move == checkers::Turn::kWhite) {
+                    res = GameResult::kBlackWin;
+                } else {
+                    res = GameResult::kWhiteWin;
+                }
+                break;
+            }
+            // Log move in notation
+            checkers::board_index_t from_sq =
+                checkers::cpu::move_gen::DecodeMove<checkers::cpu::move_gen::MovePart::From>(best_move);
+            checkers::board_index_t toSq =
+                checkers::cpu::move_gen::DecodeMove<checkers::cpu::move_gen::MovePart::To>(best_move);
+
+            // Convert to e.g. "d2-e3"
+            std::string move_string = SquareToNotation(from_sq) + "-" + SquareToNotation(toSq);
+            move_history_.push_back(move_string);
+
+            gui_->DisplayMessage("AI plays " + move_string);
+            gui_->DisplayBoard(engine_->GetBoard());
+        } else {
+            // AI logic
+            gui_->DisplayMessage("AI 2 is thinking...");
+
+            auto moves = engine_->GenerateMoves();
+            if (engine_->CheckGameResult() != GameResult::kInProgress) {
+                break;
+            }
+
+            // Start MCTS
+            auto start = std::chrono::steady_clock::now();
+            checkers::mcts::MonteCarloTree tree(engine_->GetBoard(), side_to_move);
+            float time_budget = ai_time_limit_;
+
+            checkers::move_t best_move = tree.Run(time_budget - 0.1f);  // reserve 0.1s for overhead
+            auto finish                = std::chrono::steady_clock::now();
+            float elapsed              = std::chrono::duration<float>(finish - start).count();
+            // Apply bestMove
+            bool success = engine_->ApplyMove(best_move, false);
+            if (!success) {
+                // No moves => lose
+                gui_->DisplayMessage("AI 2 move is invalid? (Probably a BUG) Forcing loss.");
+                if (side_to_move == checkers::Turn::kWhite) {
+                    res = GameResult::kBlackWin;
+                } else {
+                    res = GameResult::kWhiteWin;
+                }
+                break;
+            }
+            // Log move in notation
+            checkers::board_index_t from_sq =
+                checkers::cpu::move_gen::DecodeMove<checkers::cpu::move_gen::MovePart::From>(best_move);
+            checkers::board_index_t toSq =
+                checkers::cpu::move_gen::DecodeMove<checkers::cpu::move_gen::MovePart::To>(best_move);
+
+            std::string move_string = SquareToNotation(from_sq) + "-" + SquareToNotation(toSq);
+            move_history_.push_back(move_string);
+
+            gui_->DisplayMessage("AI 2 plays " + move_string);
+            gui_->DisplayBoard(engine_->GetBoard());
+        }
+    }
+
+    SaveRecord(recordFile);
+}
 void CheckersGame::Play(const std::string &recordFile)
 {
     if (!gui_) {

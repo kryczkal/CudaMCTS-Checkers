@@ -56,7 +56,8 @@ void CliGui::DisplayBoard(const checkers::cpu::Board &board)
             bool is_playable = ((row % 2 == 0 && col % 2 == 0) || (row % 2 == 1 && col % 2 == 1));
 
             if (!is_playable) {
-                std::cout << "   " << RESET << "|";
+                // Use red background for non-playable squares with padding
+                std::cout << "   " << "|";
                 continue;
             }
 
@@ -72,26 +73,22 @@ void CliGui::DisplayBoard(const checkers::cpu::Board &board)
 
             std::string piece = EMPTY_SQUARE;
 
-            std::cout << "\033[1m";
-            std::cout << "\033[52m";
-            std::cout << RED_ON_BLACK;
             if (is_white || is_black) {
                 if (is_white) {
                     // Assign appropriate piece representation
                     piece = is_king ? WHITE_KING : WHITE_PIECE;
                     // Print white piece with color and padding
-                    std::cout << " " << piece << " ";
+                    std::cout << " " << piece << " " << "|";
                 } else if (is_black) {
                     // Assign appropriate piece representation
                     piece = is_king ? BLACK_KING : BLACK_PIECE;
                     // Print black piece with color and padding
-                    std::cout << " " << piece << " ";
+                    std::cout << " " << piece << " " << "|";
                 }
             } else {
                 // Empty playable square with white background and padding
-                std::cout << "   ";
+                std::cout << "   " << "|";
             }
-            std::cout << RESET << "|";
         }
 
         // Print row number at the end
@@ -104,7 +101,6 @@ void CliGui::DisplayBoard(const checkers::cpu::Board &board)
     // Print column headers again with padding
     std::cout << "    a   b   c   d   e   f   g   h\n\n";
 }
-
 void CliGui::DisplayMessage(const std::string &msg) { std::cout << msg << std::endl; }
 
 std::string CliGui::PromptForMove()

@@ -22,10 +22,14 @@ static CheckersGame SetupGame(std::string game_file)
     return game;
 }
 
+/**
+ * This is a type of manual test. It is used to load a game (that caused some problems)
+ * from a file and play it.
+ */
 TEST(GameHistoriesTest, TestGame1)
 {
-    auto game = SetupGame("game_histories/test_game_13.txt");
+    //    auto game = SetupGame("game_histories/test_game_13.txt");
 
-    game.Play();
+    //    game.Play();
 }
 }  // namespace checkers

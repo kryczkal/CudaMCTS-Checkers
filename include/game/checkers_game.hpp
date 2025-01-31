@@ -61,6 +61,12 @@ class CheckersGame
     void Play(const std::string& recordFile = "");
 
     /**
+     * @brief Runs the game loop until completion using two Ai's against each other, optionally saving the move record
+     * to a file.
+     */
+    void PlayAiAi(const std::string& recordFile = "");
+
+    /**
      * @brief Loads a move record from a text file with lines like: "d2-e3" or "d2:f4:d6".
      *        Applies them one by one to the engine state.
      */

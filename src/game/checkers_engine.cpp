@@ -97,6 +97,14 @@ bool CheckersEngine::ApplyMove(move_t mv, bool validate)
         if (it == result.h_moves.end()) {
             return false;
         }
+        // Check if the move is a capture if we have captures
+        auto from_sq = DecodeMove<MovePart::From>(mv);
+        if (cpu::ReadFlag(result.h_per_board_flags[0], MoveFlagsConstants::kCaptureFound)) {
+            auto idx = (it - result.h_moves.begin()) % MoveGenResult::kMovesPerPiece;
+            if (!cpu::ReadFlag(result.h_capture_masks[from_sq], idx)) {
+                return false;
+            }
+        }
     }
 
     // We apply exactly one single-jump or step
