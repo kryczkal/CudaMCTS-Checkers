@@ -38,20 +38,20 @@ __device__ move_t SelectRandomMoveForSingleBoard(
 
             // Gather indices of sub-moves that are captures
             u8 capturing_sub_moves[16];
-            u8 captuing_count = 0;
+            u8 capturing_count = 0;
             for (u8 sub = 0; sub < count_for_candidate; sub++) {
                 const bool is_capture = ReadFlag(capture_mask, sub);
                 if (is_capture) {
-                    capturing_sub_moves[captuing_count++] = sub;
+                    capturing_sub_moves[capturing_count++] = sub;
                 }
             }
-            if (captuing_count == 0) {
+            if (capturing_count == 0) {
                 // Shouldn’t happen if capture_mask != 0, but just in case
                 continue;
             }
 
             // Pick one capturing sub-move at random
-            const u8 chosen_sub_idx = seed % captuing_count;
+            const u8 chosen_sub_idx = seed % capturing_count;
             const u8 sub_move_index = capturing_sub_moves[chosen_sub_idx];
             chosen_move             = moves[candidate_square * kNumMaxMovesPerPiece + sub_move_index];
 
@@ -98,17 +98,17 @@ __global__ void SelectBestMoves(
         board_t black_bits = d_blacks[idx];
         board_t king_bits  = d_kings[idx];
         move_flags_t flags = d_per_board_flags[idx];
-        u32& seedRef       = d_seeds[idx];
+        u32& seed_ref      = d_seeds[idx];
 
-        const move_t* boardMoves          = &d_moves[idx * (BoardConstants::kBoardSize * kNumMaxMovesPerPiece)];
-        const u8* boardMoveCounts         = &d_move_counts[idx * BoardConstants::kBoardSize];
-        const move_flags_t* boardCaptures = &d_move_capture_mask[idx * BoardConstants::kBoardSize];
+        const move_t* board_moves          = &d_moves[idx * (BoardConstants::kBoardSize * kNumMaxMovesPerPiece)];
+        const u8* board_move_counts        = &d_move_counts[idx * BoardConstants::kBoardSize];
+        const move_flags_t* board_captures = &d_move_capture_mask[idx * BoardConstants::kBoardSize];
 
-        move_t chosenMove = SelectBestMoveForSingleBoard(
-            white_bits, black_bits, king_bits, boardMoves, boardMoveCounts, boardCaptures, flags, seedRef
+        move_t chosen_move = SelectBestMoveForSingleBoard(
+            white_bits, black_bits, king_bits, board_moves, board_move_counts, board_captures, flags, seed_ref
         );
 
-        d_best_moves[idx] = chosenMove;
+        d_best_moves[idx] = chosen_move;
 
         idx += gridDim.x * blockDim.x;
     }

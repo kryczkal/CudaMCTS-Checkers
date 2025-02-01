@@ -91,8 +91,6 @@ void CheckersGame::PlayAiAi(const std::string &recordFile)
 
             checkers::move_t best_move =
                 tree.RunParallel(time_budget - 0.1f, checkers::kNumThreadsCPU);  // reserve 0.1s for overhead
-            auto finish   = std::chrono::steady_clock::now();
-            float elapsed = std::chrono::duration<float>(finish - start).count();
 
             // Apply bestMove
             bool success = engine_->ApplyMove(best_move, false);
@@ -134,8 +132,6 @@ void CheckersGame::PlayAiAi(const std::string &recordFile)
 
             checkers::move_t best_move =
                 tree.RunParallel(time_budget - 0.1f, checkers::kNumThreadsCPU);  // reserve 0.1s for overhead
-            auto finish   = std::chrono::steady_clock::now();
-            float elapsed = std::chrono::duration<float>(finish - start).count();
             // Apply bestMove
             bool success = engine_->ApplyMove(best_move, false);
             if (!success) {
@@ -243,19 +239,6 @@ void CheckersGame::Play(const std::string &recordFile)
 
             checkers::move_t best_move =
                 tree.RunParallel(time_budget - 0.1f, checkers::kNumThreadsCPU);  // reserve 0.1s for overhead
-            auto finish   = std::chrono::steady_clock::now();
-            float elapsed = std::chrono::duration<float>(finish - start).count();
-            //            if (elapsed > aiTimeLimit_) {
-            //                // AI took too long => it loses
-            //                gui_->DisplayMessage("AI timed out!");
-            //                if (sideToMove == checkers::Turn::kWhite) {
-            //                    res = GameResult::kBlackWin;
-            //                } else {
-            //                    res = GameResult::kWhiteWin;
-            //                }
-            //                break;
-            //            }
-
             // Apply bestMove
             bool success = engine_->ApplyMove(best_move, false);
             if (!success) {

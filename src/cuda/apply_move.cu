@@ -38,10 +38,10 @@ __device__ void ApplyMoveOnSingleBoard(move_t move, board_t& white_bits, board_t
 
     // Eliminate captured pieces (using the precomputed capture mask)
     // d_kCaptureLookUpTable is in constant memory
-    board_t captureMask = d_kCaptureLookUpTable[from * BoardConstants::kBoardSize + to];
-    white_bits &= captureMask;
-    black_bits &= captureMask;
-    king_bits &= captureMask;
+    const board_t capture_mask = d_kCaptureLookUpTable[from * BoardConstants::kBoardSize + to];
+    white_bits &= capture_mask;
+    black_bits &= capture_mask;
+    king_bits &= capture_mask;
 }
 
 __global__ void ApplyMove(

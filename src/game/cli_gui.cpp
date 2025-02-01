@@ -65,9 +65,9 @@ void CliGui::DisplayBoard(const checkers::cpu::Board &board, const checkers::mov
             }
 
             // Convert row and column to bitboard index
-            int r     = row;
-            int cHalf = (r % 2 == 0) ? (col / 2) : ((col - 1) / 2);
-            int idx   = r * 4 + cHalf;
+            int r      = row;
+            int c_half = (r % 2 == 0) ? (col / 2) : ((col - 1) / 2);
+            int idx    = r * 4 + c_half;
 
             if (idx == to_sq) {
                 std::cout << RED_BG;

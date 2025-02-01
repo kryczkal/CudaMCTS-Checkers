@@ -23,6 +23,17 @@ using move_flags_t  = u16;
 static constexpr move_t kInvalidMove = 0xFFFF;
 
 ///////////////////////////////// Constants //////////////////////////////////
+/**
+ * \brief Outcome encoding in scores[]:
+ *  0 = in progress (not used at the end, but can be intermediate)
+ *  1 = White wins
+ *  2 = Black wins
+ *  3 = Draw
+ */
+static constexpr u8 kOutcomeWhite      = 1;
+static constexpr u8 kOutcomeBlack      = 2;
+static constexpr u8 kOutcomeDraw       = 3;
+static constexpr u8 kOutcomeInProgress = 0;
 
 class BoardConstants
 {

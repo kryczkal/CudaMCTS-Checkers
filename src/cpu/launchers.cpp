@@ -167,10 +167,10 @@ std::vector<SimulationResult> HostSimulateCheckersGames(const std::vector<Simula
             for (int moveCount = 0; moveCount < max_iterations; moveCount++) {
                 // Check if someone is out of pieces
                 if (black_board == 0) {
-                    outcome = 1;  // White wins
+                    outcome = kOutcomeWhite;  // White wins
                     break;
                 } else if (white_board == 0) {
-                    outcome = 2;  // Black wins
+                    outcome = kOutcomeBlack;  // Black wins
                     break;
                 }
 
@@ -209,7 +209,7 @@ std::vector<SimulationResult> HostSimulateCheckersGames(const std::vector<Simula
 
                 if (chosen_move == kInvalidMove) {
                     // no moves => side to move loses
-                    outcome = (!current_turn_is_black ? 2 : 1);
+                    outcome = (!current_turn_is_black ? kOutcomeBlack : kOutcomeWhite);
                     break;
                 }
 
@@ -275,7 +275,7 @@ std::vector<SimulationResult> HostSimulateCheckersGames(const std::vector<Simula
                     non_reversible_count = 0;
                 }
                 if (non_reversible_count >= 40) {
-                    outcome = 3;  // draw
+                    outcome = kOutcomeDraw;  // draw
                     break;
                 }
 
@@ -284,8 +284,8 @@ std::vector<SimulationResult> HostSimulateCheckersGames(const std::vector<Simula
             }
 
             // If still 0, declare a draw
-            if (outcome == 0) {
-                outcome = 3;  // draw
+            if (outcome == kOutcomeInProgress) {
+                outcome = kOutcomeDraw;  // draw
             }
 
             // Convert outcome from {1=White,2=Black,3=Draw} to perspective of 'startBlack'
@@ -294,12 +294,12 @@ std::vector<SimulationResult> HostSimulateCheckersGames(const std::vector<Simula
             // If outcome=3 => draw => storeVal=1
             // If outcome=the other side => storeVal=0
             u8 store_val = 0;  // lose
-            if (outcome == 3) {
+            if (outcome == kOutcomeDraw) {
                 store_val = 1;  // draw
-            } else if (!start_black && outcome == 1) {
+            } else if (!start_black && outcome == kOutcomeWhite) {
                 // White started, White wins => storeVal=2
                 store_val = 2;
-            } else if (start_black && outcome == 2) {
+            } else if (start_black && outcome == kOutcomeBlack) {
                 // Black started, Black wins => storeVal=2
                 store_val = 2;
             }

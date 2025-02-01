@@ -17,20 +17,20 @@ __global__ void blockSumKernel(const u8* __restrict__ g_input, u64* __restrict__
     size_t grid = gridDim.x * blockDim.x;
 
     // Accumulate a local sum in 64-bit
-    u64 localSum = 0;
+    u64 local_sum = 0;
     // Stride loop to collect all values for this thread
     while (tid < n) {
-        localSum += g_input[tid];
+        local_sum += g_input[tid];
         tid += grid;
     }
 
     // Write to shared memory
-    sdata[threadIdx.x] = localSum;
+    sdata[threadIdx.x] = local_sum;
     __syncthreads();
 
     // Tree reduction in shared memory
-    u32 blockSize = blockDim.x;
-    for (u32 stride = blockSize / 2; stride > 0; stride >>= 1) {
+    const u32 block_size = blockDim.x;
+    for (u32 stride = block_size / 2; stride > 0; stride >>= 1) {
         if (threadIdx.x < stride) {
             sdata[threadIdx.x] += sdata[threadIdx.x + stride];
         }
@@ -52,17 +52,17 @@ __global__ void finalSumKernel(const u64* __restrict__ g_blockSums, u64* __restr
     extern __shared__ u64 sdata[];
 
     // Each thread loads one partial sum
-    size_t tid = threadIdx.x;
-    u64 val    = 0;
-    if (tid < n) {
-        val = g_blockSums[tid];
+    const size_t kTid = threadIdx.x;
+    u64 val           = 0;
+    if (kTid < n) {
+        val = g_blockSums[kTid];
     }
     sdata[threadIdx.x] = val;
     __syncthreads();
 
     // Perform standard reduction in shared memory
-    u32 blockSize = blockDim.x;
-    for (u32 stride = blockSize / 2; stride > 0; stride >>= 1) {
+    const u32 block_size = blockDim.x;
+    for (u32 stride = block_size / 2; stride > 0; stride >>= 1) {
         if (threadIdx.x < stride) {
             sdata[threadIdx.x] += sdata[threadIdx.x + stride];
         }
@@ -85,46 +85,46 @@ u64 DeviceSumU8(const u8* d_in, size_t n)
     }
 
     // Decide block and grid size
-    const u64 blockSize = 256;
-    const u64 gridSize  = static_cast<int>((n + blockSize - 1) / blockSize);
+    const u64 kBlockSize = 256;
+    const u64 kGridSize  = static_cast<int>((n + kBlockSize - 1) / kBlockSize);
 
     // Allocate partial sums (one per block)
-    u64* d_blockSums = nullptr;
-    CHECK_CUDA_ERROR(cudaMalloc(&d_blockSums, gridSize * sizeof(u64)));
+    u64* d_block_sums = nullptr;
+    CHECK_CUDA_ERROR(cudaMalloc(&d_block_sums, kGridSize * sizeof(u64)));
 
     // First pass: partial sums per block
-    size_t sharedBytes = blockSize * sizeof(u64);
-    blockSumKernel<<<gridSize, blockSize, sharedBytes>>>(d_in, d_blockSums, n);
+    size_t shared_bytes = kBlockSize * sizeof(u64);
+    blockSumKernel<<<kGridSize, kBlockSize, shared_bytes>>>(d_in, d_block_sums, n);
     CHECK_CUDA_ERROR(cudaDeviceSynchronize());
     CHECK_LAST_CUDA_ERROR();
 
     // If we have only one block, we are already done
-    if (gridSize == 1) {
+    if (kGridSize == 1) {
         // Just copy back result
-        u64 hostSum;
-        CHECK_CUDA_ERROR(cudaMemcpy(&hostSum, d_blockSums, sizeof(u64), cudaMemcpyDeviceToHost));
-        CHECK_CUDA_ERROR(cudaFree(d_blockSums));
-        return hostSum;
+        u64 host_sum;
+        CHECK_CUDA_ERROR(cudaMemcpy(&host_sum, d_block_sums, sizeof(u64), cudaMemcpyDeviceToHost));
+        CHECK_CUDA_ERROR(cudaFree(d_block_sums));
+        return host_sum;
     }
 
     // Final pass: sum the partial sums in a single block
     u64* d_out = nullptr;
     CHECK_CUDA_ERROR(cudaMalloc(&d_out, sizeof(u64)));
 
-    // Launch one block with enough threads to handle gridSize partial sums
-    u64 finalThreads = std::max((u64)1, std::min(blockSize, gridSize));
-    size_t shared2   = finalThreads * sizeof(u64);
-    finalSumKernel<<<1, finalThreads, shared2>>>(d_blockSums, d_out, gridSize);
+    // Launch one block with enough threads to handle partial sums
+    const u64 final_threads = std::max((u64)1, std::min(kBlockSize, kGridSize));
+    const size_t shared_2   = final_threads * sizeof(u64);
+    finalSumKernel<<<1, final_threads, shared_2>>>(d_block_sums, d_out, kGridSize);
     CHECK_CUDA_ERROR(cudaDeviceSynchronize());
     CHECK_LAST_CUDA_ERROR();
 
     // Copy final sum to host
-    u64 hostSum;
-    CHECK_CUDA_ERROR(cudaMemcpy(&hostSum, d_out, sizeof(u64), cudaMemcpyDeviceToHost));
+    u64 host_sum;
+    CHECK_CUDA_ERROR(cudaMemcpy(&host_sum, d_out, sizeof(u64), cudaMemcpyDeviceToHost));
 
     // Cleanup
-    CHECK_CUDA_ERROR(cudaFree(d_blockSums));
+    CHECK_CUDA_ERROR(cudaFree(d_block_sums));
     CHECK_CUDA_ERROR(cudaFree(d_out));
 
-    return hostSum;
+    return host_sum;
 }

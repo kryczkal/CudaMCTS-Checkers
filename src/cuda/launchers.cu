@@ -85,25 +85,26 @@ std::vector<MoveGenResult> HostGenerateMoves(const std::vector<GpuBoard>& boards
     //--------------------------------------------------------------------------
     {
         // Moves to invalid
-        std::vector<move_t> initMoves(kTotalMoves, kInvalidMove);
-        CHECK_CUDA_ERROR(cudaMemcpy(d_moves, initMoves.data(), kTotalMoves * sizeof(move_t), cudaMemcpyHostToDevice));
+        std::vector<move_t> init_moves(kTotalMoves, kInvalidMove);
+        CHECK_CUDA_ERROR(cudaMemcpy(d_moves, init_moves.data(), kTotalMoves * sizeof(move_t), cudaMemcpyHostToDevice));
 
         // Move counts to zero
-        std::vector<u8> initCounts(n_boards * kTotalSquares, 0);
+        std::vector<u8> init_counts(n_boards * kTotalSquares, 0);
         CHECK_CUDA_ERROR(
-            cudaMemcpy(d_move_counts, initCounts.data(), n_boards * kTotalSquares * sizeof(u8), cudaMemcpyHostToDevice)
+            cudaMemcpy(d_move_counts, init_counts.data(), n_boards * kTotalSquares * sizeof(u8), cudaMemcpyHostToDevice)
         );
 
         // Capture masks to zero
-        std::vector<move_flags_t> initCapture(n_boards * kTotalSquares, 0);
+        std::vector<move_flags_t> init_capture(n_boards * kTotalSquares, 0);
         CHECK_CUDA_ERROR(cudaMemcpy(
-            d_capture_masks, initCapture.data(), n_boards * kTotalSquares * sizeof(move_flags_t), cudaMemcpyHostToDevice
+            d_capture_masks, init_capture.data(), n_boards * kTotalSquares * sizeof(move_flags_t),
+            cudaMemcpyHostToDevice
         ));
 
         // Per-board flags to zero
-        std::vector<move_flags_t> zeroBoardFlags(n_boards, 0);
+        std::vector<move_flags_t> zero_board_flags(n_boards, 0);
         CHECK_CUDA_ERROR(cudaMemcpy(
-            d_per_board_flags, zeroBoardFlags.data(), n_boards * sizeof(move_flags_t), cudaMemcpyHostToDevice
+            d_per_board_flags, zero_board_flags.data(), n_boards * sizeof(move_flags_t), cudaMemcpyHostToDevice
         ));
     }
 
@@ -161,18 +162,18 @@ std::vector<MoveGenResult> HostGenerateMoves(const std::vector<GpuBoard>& boards
         MoveGenResult& r = results[i];
 
         // Moves
-        const size_t offset = i * kTotalMovesPerBoard;
-        std::copy(host_moves.begin() + offset, host_moves.begin() + offset + kTotalMovesPerBoard, r.h_moves.begin());
+        const size_t kOffset = i * kTotalMovesPerBoard;
+        std::copy(host_moves.begin() + kOffset, host_moves.begin() + kOffset + kTotalMovesPerBoard, r.h_moves.begin());
 
         // Move counts & capture masks
-        const size_t offsetBoard = i * kTotalSquares;
+        const size_t kOffsetBoard = i * kTotalSquares;
         std::copy(
-            host_move_counts.begin() + offsetBoard, host_move_counts.begin() + offsetBoard + kTotalSquares,
+            host_move_counts.begin() + kOffsetBoard, host_move_counts.begin() + kOffsetBoard + kTotalSquares,
             r.h_move_counts.begin()
         );
 
         std::copy(
-            host_capture_masks.begin() + offsetBoard, host_capture_masks.begin() + offsetBoard + kTotalSquares,
+            host_capture_masks.begin() + kOffsetBoard, host_capture_masks.begin() + kOffsetBoard + kTotalSquares,
             r.h_capture_masks.begin()
         );
 
@@ -202,9 +203,9 @@ std::vector<GpuBoard> HostApplyMoves(const std::vector<GpuBoard>& boards, const 
     const size_t n_boards = boards.size();
 
     // Copy of the original boards to be updated
-    std::vector<GpuBoard> updatedBoards = boards;
+    std::vector<GpuBoard> updated_boards = boards;
     if (n_boards == 0) {
-        return updatedBoards;
+        return updated_boards;
     }
 
     //--------------------------------------------------------------------------
@@ -241,10 +242,10 @@ std::vector<GpuBoard> HostApplyMoves(const std::vector<GpuBoard>& boards, const 
     //--------------------------------------------------------------------------
     // Launch the kernel
     //--------------------------------------------------------------------------
-    const int threadsPerBlock = 256;
-    const int blocks          = static_cast<int>((n_boards + threadsPerBlock - 1) / threadsPerBlock);
+    const int kThreadsPerBlock = 256;
+    const int kBlocks          = static_cast<int>((n_boards + kThreadsPerBlock - 1) / kThreadsPerBlock);
 
-    ApplyMove<<<blocks, threadsPerBlock>>>(d_whites, d_blacks, d_kings, d_moves, static_cast<u64>(n_boards));
+    ApplyMove<<<kBlocks, kThreadsPerBlock>>>(d_whites, d_blacks, d_kings, d_moves, static_cast<u64>(n_boards));
     CHECK_LAST_CUDA_ERROR();
     CHECK_CUDA_ERROR(cudaDeviceSynchronize());
 
@@ -259,9 +260,9 @@ std::vector<GpuBoard> HostApplyMoves(const std::vector<GpuBoard>& boards, const 
     // Update our returned board states
     //--------------------------------------------------------------------------
     for (size_t i = 0; i < n_boards; ++i) {
-        updatedBoards[i].white = host_whites[i];
-        updatedBoards[i].black = host_blacks[i];
-        updatedBoards[i].kings = host_kings[i];
+        updated_boards[i].white = host_whites[i];
+        updated_boards[i].black = host_blacks[i];
+        updated_boards[i].kings = host_kings[i];
     }
 
     //--------------------------------------------------------------------------
@@ -272,7 +273,7 @@ std::vector<GpuBoard> HostApplyMoves(const std::vector<GpuBoard>& boards, const 
     CHECK_CUDA_ERROR(cudaFree(d_kings));
     CHECK_CUDA_ERROR(cudaFree(d_moves));
 
-    return updatedBoards;
+    return updated_boards;
 }
 
 std::vector<move_t> HostSelectBestMoves(
@@ -285,10 +286,10 @@ std::vector<move_t> HostSelectBestMoves(
     using namespace checkers::gpu::move_selection;
 
     const size_t n_boards = boards.size();
-    std::vector<move_t> bestMoves(n_boards, kInvalidMove);
+    std::vector<move_t> best_moves(n_boards, kInvalidMove);
 
     if (n_boards == 0) {
-        return bestMoves;
+        return best_moves;
     }
 
     //--------------------------------------------------------------------------
@@ -302,10 +303,10 @@ std::vector<move_t> HostSelectBestMoves(
     }
 
     // Basic size checks (could be expanded with error handling)
-    const size_t totalSquares       = BoardConstants::kBoardSize;
-    const size_t movesPerPiece      = kNumMaxMovesPerPiece;
-    const size_t totalMovesPerBoard = totalSquares * movesPerPiece;
-    if (moves.size() != n_boards * totalMovesPerBoard) {
+    const size_t kTotalSquares       = BoardConstants::kBoardSize;
+    const size_t kMovesPerPiece      = kNumMaxMovesPerPiece;
+    const size_t kTotalMovesPerBoard = kTotalSquares * kMovesPerPiece;
+    if (moves.size() != n_boards * kTotalMovesPerBoard) {
         // Potentially handle or throw an error. For now, assume correct input.
     }
 
@@ -326,8 +327,8 @@ std::vector<move_t> HostSelectBestMoves(
     CHECK_CUDA_ERROR(cudaMalloc(&d_blacks, n_boards * sizeof(u32)));
     CHECK_CUDA_ERROR(cudaMalloc(&d_kings, n_boards * sizeof(u32)));
     CHECK_CUDA_ERROR(cudaMalloc(&d_moves, moves.size() * sizeof(move_t)));
-    CHECK_CUDA_ERROR(cudaMalloc(&d_move_counts, n_boards * totalSquares * sizeof(u8)));
-    CHECK_CUDA_ERROR(cudaMalloc(&d_capture_masks, n_boards * totalSquares * sizeof(move_flags_t)));
+    CHECK_CUDA_ERROR(cudaMalloc(&d_move_counts, n_boards * kTotalSquares * sizeof(u8)));
+    CHECK_CUDA_ERROR(cudaMalloc(&d_capture_masks, n_boards * kTotalSquares * sizeof(move_flags_t)));
     CHECK_CUDA_ERROR(cudaMalloc(&d_per_board_flags, n_boards * sizeof(move_flags_t)));
     CHECK_CUDA_ERROR(cudaMalloc(&d_seeds, n_boards * sizeof(u32)));
     CHECK_CUDA_ERROR(cudaMalloc(&d_best_moves, n_boards * sizeof(move_t)));
@@ -341,10 +342,10 @@ std::vector<move_t> HostSelectBestMoves(
 
     CHECK_CUDA_ERROR(cudaMemcpy(d_moves, moves.data(), moves.size() * sizeof(move_t), cudaMemcpyHostToDevice));
     CHECK_CUDA_ERROR(
-        cudaMemcpy(d_move_counts, move_counts.data(), n_boards * totalSquares * sizeof(u8), cudaMemcpyHostToDevice)
+        cudaMemcpy(d_move_counts, move_counts.data(), n_boards * kTotalSquares * sizeof(u8), cudaMemcpyHostToDevice)
     );
     CHECK_CUDA_ERROR(cudaMemcpy(
-        d_capture_masks, capture_masks.data(), n_boards * totalSquares * sizeof(move_flags_t), cudaMemcpyHostToDevice
+        d_capture_masks, capture_masks.data(), n_boards * kTotalSquares * sizeof(move_flags_t), cudaMemcpyHostToDevice
     ));
     CHECK_CUDA_ERROR(
         cudaMemcpy(d_per_board_flags, per_board_flags.data(), n_boards * sizeof(move_flags_t), cudaMemcpyHostToDevice)
@@ -358,11 +359,11 @@ std::vector<move_t> HostSelectBestMoves(
     //--------------------------------------------------------------------------
     // Launch the kernel
     //--------------------------------------------------------------------------
-    const int threadsPerBlock = 256;
-    const size_t totalThreads = n_boards;
-    const int blocks          = static_cast<int>((totalThreads + threadsPerBlock - 1) / threadsPerBlock);
+    const u32 kThreadsPerBlock = 256;
+    const size_t kTotalThreads = n_boards;
+    const u32 kBlocks          = static_cast<int>((kTotalThreads + kThreadsPerBlock - 1) / kThreadsPerBlock);
 
-    SelectBestMoves<<<blocks, threadsPerBlock>>>(
+    SelectBestMoves<<<kBlocks, kThreadsPerBlock>>>(
         d_whites, d_blacks, d_kings, d_moves, d_move_counts, d_capture_masks, d_per_board_flags,
         static_cast<u64>(n_boards), d_seeds, d_best_moves
     );
@@ -372,7 +373,7 @@ std::vector<move_t> HostSelectBestMoves(
     //--------------------------------------------------------------------------
     // Copy results back to host
     //--------------------------------------------------------------------------
-    CHECK_CUDA_ERROR(cudaMemcpy(bestMoves.data(), d_best_moves, n_boards * sizeof(move_t), cudaMemcpyDeviceToHost));
+    CHECK_CUDA_ERROR(cudaMemcpy(best_moves.data(), d_best_moves, n_boards * sizeof(move_t), cudaMemcpyDeviceToHost));
 
     //--------------------------------------------------------------------------
     // Cleanup
@@ -387,7 +388,7 @@ std::vector<move_t> HostSelectBestMoves(
     CHECK_CUDA_ERROR(cudaFree(d_seeds));
     CHECK_CUDA_ERROR(cudaFree(d_best_moves));
 
-    return bestMoves;
+    return best_moves;
 }
 
 std::vector<SimulationResult> HostSimulateCheckersGames(const std::vector<SimulationParam>& params, int max_iterations)
@@ -411,15 +412,15 @@ std::vector<SimulationResult> HostSimulateCheckersGames(const std::vector<Simula
     std::vector<board_t> h_whites(n_simulation_counts);
     std::vector<board_t> h_blacks(n_simulation_counts);
     std::vector<board_t> h_kings(n_simulation_counts);
-    std::vector<u8> h_startTurns(n_simulation_counts);
-    std::vector<u64> h_simCounts(n_simulation_counts);
+    std::vector<u8> h_start_turns(n_simulation_counts);
+    std::vector<u64> h_sim_counts(n_simulation_counts);
 
     for (size_t i = 0; i < n_simulation_counts; i++) {
-        h_whites[i]     = params[i].white;
-        h_blacks[i]     = params[i].black;
-        h_kings[i]      = params[i].king;
-        h_startTurns[i] = params[i].start_turn;
-        h_simCounts[i]  = params[i].n_simulations;
+        h_whites[i]      = params[i].white;
+        h_blacks[i]      = params[i].black;
+        h_kings[i]       = params[i].king;
+        h_start_turns[i] = params[i].start_turn;
+        h_sim_counts[i]  = params[i].n_simulations;
     }
 
     // Generate random seeds for each of the total simulations
@@ -437,16 +438,16 @@ std::vector<SimulationResult> HostSimulateCheckersGames(const std::vector<Simula
     board_t* d_whites = nullptr;
     board_t* d_blacks = nullptr;
     board_t* d_kings  = nullptr;
-    u8* d_startTurns  = nullptr;
-    u64* d_simCounts  = nullptr;
+    u8* d_start_turns = nullptr;
+    u64* d_sim_counts = nullptr;
     u8* d_scores      = nullptr;  // size = n_total_simulations
     u8* d_seeds       = nullptr;
 
     CHECK_CUDA_ERROR(cudaMalloc(&d_whites, n_simulation_counts * sizeof(board_t)));
     CHECK_CUDA_ERROR(cudaMalloc(&d_blacks, n_simulation_counts * sizeof(board_t)));
     CHECK_CUDA_ERROR(cudaMalloc(&d_kings, n_simulation_counts * sizeof(board_t)));
-    CHECK_CUDA_ERROR(cudaMalloc(&d_startTurns, n_simulation_counts * sizeof(u8)));
-    CHECK_CUDA_ERROR(cudaMalloc(&d_simCounts, n_simulation_counts * sizeof(u64)));
+    CHECK_CUDA_ERROR(cudaMalloc(&d_start_turns, n_simulation_counts * sizeof(u8)));
+    CHECK_CUDA_ERROR(cudaMalloc(&d_sim_counts, n_simulation_counts * sizeof(u64)));
     CHECK_CUDA_ERROR(cudaMalloc(&d_scores, n_total_simulations * sizeof(u8)));
     CHECK_CUDA_ERROR(cudaMalloc(&d_seeds, n_total_simulations * sizeof(u32)));
 
@@ -462,10 +463,10 @@ std::vector<SimulationResult> HostSimulateCheckersGames(const std::vector<Simula
     CHECK_CUDA_ERROR(cudaMemcpy(d_kings, h_kings.data(), n_simulation_counts * sizeof(board_t), cudaMemcpyHostToDevice)
     );
     CHECK_CUDA_ERROR(
-        cudaMemcpy(d_startTurns, h_startTurns.data(), n_simulation_counts * sizeof(u8), cudaMemcpyHostToDevice)
+        cudaMemcpy(d_start_turns, h_start_turns.data(), n_simulation_counts * sizeof(u8), cudaMemcpyHostToDevice)
     );
     CHECK_CUDA_ERROR(
-        cudaMemcpy(d_simCounts, h_simCounts.data(), n_simulation_counts * sizeof(u64), cudaMemcpyHostToDevice)
+        cudaMemcpy(d_sim_counts, h_sim_counts.data(), n_simulation_counts * sizeof(u64), cudaMemcpyHostToDevice)
     );
 
     // Scores set to 0 initially
@@ -481,12 +482,12 @@ std::vector<SimulationResult> HostSimulateCheckersGames(const std::vector<Simula
     //   Implementation is the same as shown in your code, except that it
     //   places final results in d_scores[] for each simulation.
     //--------------------------------------------------------------------------
-    const int threadsPerBlock = kNumBoardsPerBlock * BoardConstants::kBoardSize;
-    const u64 totalThreads    = n_total_simulations * BoardConstants::kBoardSize;
-    const int blocks          = static_cast<int>((totalThreads + threadsPerBlock - 1) / threadsPerBlock);
+    const int kThreadsPerBlock = kNumBoardsPerBlock * kThreadsPerBoardInSimulation;
+    const u64 kTotalThreads    = n_total_simulations * kThreadsPerBoardInSimulation;
+    const int kBlocks          = static_cast<int>((kTotalThreads + kThreadsPerBlock - 1) / kThreadsPerBlock);
 
-    SimulateCheckersGames<<<blocks, threadsPerBlock>>>(
-        d_whites, d_blacks, d_kings, d_startTurns, d_simCounts, n_simulation_counts,
+    SimulateCheckersGames<<<kBlocks, kThreadsPerBlock>>>(
+        d_whites, d_blacks, d_kings, d_start_turns, d_sim_counts, n_simulation_counts,
         d_scores,  // each simulation’s 0/1/2 outcome
         d_seeds, max_iterations, n_total_simulations
     );
@@ -500,8 +501,8 @@ std::vector<SimulationResult> HostSimulateCheckersGames(const std::vector<Simula
 
     u64 offset = 0;
     for (size_t i = 0; i < n_simulation_counts; i++) {
-        u64 simCount = h_simCounts[i];
-        if (simCount == 0) {
+        u64 sim_count = h_sim_counts[i];
+        if (sim_count == 0) {
             // no simulations in this batch
             results[i].score         = 0.0;
             results[i].n_simulations = 0;
@@ -510,17 +511,17 @@ std::vector<SimulationResult> HostSimulateCheckersGames(const std::vector<Simula
 
         // sum the subarray d_scores[offset .. offset+simCount-1]
         const u8* d_subarray = d_scores + offset;
-        u64 sum              = DeviceSumU8(d_subarray, simCount);
+        u64 sum              = DeviceSumU8(d_subarray, sim_count);
 
         // Each result can be 0=lose,1=draw,2=win.
         // Conversion: final_score = sum_of_all_outcomes / 2.0
         // so that 2 => 1.0, 1 => 0.5, 0 => 0.0
-        double finalScore = static_cast<double>(sum) / 2.0;
+        double final_score = static_cast<double>(sum) / 2.0;
 
-        results[i].score         = finalScore;
-        results[i].n_simulations = simCount;
+        results[i].score         = final_score;
+        results[i].n_simulations = sim_count;
 
-        offset += simCount;
+        offset += sim_count;
     }
 
     //--------------------------------------------------------------------------
@@ -529,8 +530,8 @@ std::vector<SimulationResult> HostSimulateCheckersGames(const std::vector<Simula
     CHECK_CUDA_ERROR(cudaFree(d_whites));
     CHECK_CUDA_ERROR(cudaFree(d_blacks));
     CHECK_CUDA_ERROR(cudaFree(d_kings));
-    CHECK_CUDA_ERROR(cudaFree(d_startTurns));
-    CHECK_CUDA_ERROR(cudaFree(d_simCounts));
+    CHECK_CUDA_ERROR(cudaFree(d_start_turns));
+    CHECK_CUDA_ERROR(cudaFree(d_sim_counts));
     CHECK_CUDA_ERROR(cudaFree(d_scores));
     CHECK_CUDA_ERROR(cudaFree(d_seeds));
 

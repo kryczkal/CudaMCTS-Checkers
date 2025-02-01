@@ -17,16 +17,16 @@ void InitializeCaptureLookupTable()
         return;
     }
     // Flatten the 2D host array to a 1D array
-    std::array<board_t, BoardConstants::kBoardSize * BoardConstants::kBoardSize> flatTable{};
+    std::array<board_t, BoardConstants::kBoardSize * BoardConstants::kBoardSize> flat_table{};
     for (size_t i = 0; i < BoardConstants::kBoardSize; ++i) {
         for (size_t j = 0; j < BoardConstants::kBoardSize; ++j) {
-            flatTable[i * BoardConstants::kBoardSize + j] = checkers::cpu::apply_move::h_kCaptureLookUpTable[i][j];
+            flat_table[i * BoardConstants::kBoardSize + j] = checkers::cpu::apply_move::h_kCaptureLookUpTable[i][j];
         }
     }
 
     // Copy the flattened data to constant memory on the device
     CHECK_CUDA_ERROR(cudaMemcpyToSymbol(
-        d_kCaptureLookUpTable, flatTable.data(),
+        d_kCaptureLookUpTable, flat_table.data(),
         sizeof(board_t) * BoardConstants::kBoardSize * BoardConstants::kBoardSize
     ));
 

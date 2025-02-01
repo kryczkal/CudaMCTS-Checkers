@@ -33,19 +33,19 @@ move_t SelectRandomMoveForSingleBoard(
 
             // gather the sub-moves that are captures
             u8 capturing_indices[16];
-            u8 capturingCount = 0;
+            u8 capturing_count = 0;
             for (u8 sub = 0; sub < count; sub++) {
                 bool isCap = ReadFlag(cmask, sub);
                 if (isCap) {
-                    capturing_indices[capturingCount++] = sub;
+                    capturing_indices[capturing_count++] = sub;
                 }
             }
-            if (capturingCount == 0) {
+            if (capturing_count == 0) {
                 continue;
             }
 
             // pick one capturing sub-move
-            u8 chosen_sub = seed % capturingCount;
+            u8 chosen_sub = seed % capturing_count;
             chosen_move   = moves[sq * kNumMaxMovesPerPiece + capturing_indices[chosen_sub]];
             SimpleRand(seed);
             break;

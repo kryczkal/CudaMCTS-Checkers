@@ -49,34 +49,34 @@ void CudaUtils::PrintCudaDeviceInfo()
         printf("  ----------------------------\n");
 
         // Calculating theoretical maximum FLOPS
-        double peakFLOPS = 0.0;
+        double peak_flops = 0.0;
         if (prop.major >= 2) {  // Fermi and later
-            int cudaCoresPerSM = 0;
+            int cuda_cores_per_sm = 0;
             switch (prop.major) {
                 case 2:  // Fermi
-                    cudaCoresPerSM = prop.minor == 0 ? 32 : 48;
+                    cuda_cores_per_sm = prop.minor == 0 ? 32 : 48;
                     break;
                 case 3:  // Kepler
-                    cudaCoresPerSM = 192;
+                    cuda_cores_per_sm = 192;
                     break;
                 case 5:  // Maxwell
-                    cudaCoresPerSM = 128;
+                    cuda_cores_per_sm = 128;
                     break;
                 case 6:  // Pascal
-                    cudaCoresPerSM = (prop.minor == 1 || prop.minor == 2) ? 128 : 64;
+                    cuda_cores_per_sm = (prop.minor == 1 || prop.minor == 2) ? 128 : 64;
                     break;
                 case 7:  // Volta and Turing
-                    cudaCoresPerSM = 64;
+                    cuda_cores_per_sm = 64;
                     break;
                 case 8:  // Ampere
-                    cudaCoresPerSM = (prop.minor == 0) ? 64 : 128;
+                    cuda_cores_per_sm = (prop.minor == 0) ? 64 : 128;
                     break;
                 default:
-                    cudaCoresPerSM = 64;  // Estimate for future architectures
+                    cuda_cores_per_sm = 64;  // Estimate for future architectures
                     break;
             }
-            peakFLOPS = 2.0 * prop.multiProcessorCount * cudaCoresPerSM * (prop.clockRate * 1e3);
-            printf("  Theoretical Peak FLOPS        : %.2f GFLOPS\n", peakFLOPS / 1e9);
+            peak_flops = 2.0 * prop.multiProcessorCount * cuda_cores_per_sm * (prop.clockRate * 1e3);
+            printf("  Theoretical Peak FLOPS        : %.2f GFLOPS\n", peak_flops / 1e9);
         } else {
             printf("  Theoretical Peak FLOPS        : Not Available for Compute < 2.0\n");
         }
