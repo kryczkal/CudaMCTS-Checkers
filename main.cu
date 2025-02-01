@@ -19,6 +19,7 @@ int main()
     //     game.LoadGameRecord("game_histories/test_game_16.txt");
 
     // Play until completion, record into "game_record.txt"
+    // TODO: Doesn't handle draw in game loop
     game.PlayAiAi("game_record.txt");
 
     return 0;

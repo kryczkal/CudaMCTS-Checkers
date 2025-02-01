@@ -37,7 +37,7 @@ class Timer
 };
 
 // Worker thread function: repeatedly call Iteration() until the stop flag is set.
-static void mcts_worker(MonteCarloTree* tree)
+void mcts_worker(MonteCarloTree* tree)
 {
     while (!g_stop_flag.load(std::memory_order_relaxed)) {
         tree->IterationParallel();
@@ -376,6 +376,13 @@ checkers::move_t MonteCarloTree::RunParallel(f32 time_seconds, size_t num_thread
         return kInvalidMove;
     }
     return SelectBestMove<f32, &MonteCarloTree::WinRate>(root_);
+}
+u64 MonteCarloTree::GetTotalSimulations()
+{
+    if (!root_) {
+        return 0;
+    }
+    return root_->visits_;
 }
 
 // ------------------- MonteCarloTreeNode Implementation ----------------------

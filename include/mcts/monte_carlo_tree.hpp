@@ -12,7 +12,7 @@
 
 namespace checkers::mcts
 {
-static constexpr u64 kMaxTotalSimulations = 5e3;
+static constexpr u64 kMaxTotalSimulations = 12e3;
 static constexpr u64 kSimulationMaxDepth  = 100;
 static constexpr f32 kExplorationConstant = 1.41f;
 
@@ -46,9 +46,10 @@ class MonteCarloTree
      */
     void DescendTree(const move_t move);
 
-    void IterationParallel();
+    u64 GetTotalSimulations();
 
     private:
+    void IterationParallel();
     /**
      * @brief Select a node by traversing children with highest UCT scores
      *        until we hit a leaf or terminal node.
@@ -93,11 +94,11 @@ class MonteCarloTree
      */
     static f32 WinRate(const MonteCarloTreeNode* node);
 
-    private:
     MonteCarloTreeNode* root_{};
     void BackPropagateParallel(std::vector<MonteCarloTreeNode*> nodes, const std::vector<SimulationResult>& results);
     std::vector<MonteCarloTreeNode*> ExpandNodeParallel(MonteCarloTreeNode* node);
     MonteCarloTreeNode* SelectNodeParallel();
+    friend void mcts_worker(MonteCarloTree* tree);
 };
 
 class MonteCarloTreeNode

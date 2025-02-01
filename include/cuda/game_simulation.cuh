@@ -14,8 +14,17 @@ namespace checkers::gpu
 // For example: if kThreadsPerBoardInSimulation = 6, each board is processed by 6 threads,
 // and these threads will loop over all 32 board squares.
 // -----------------------------------------------------------------------------
-static constexpr int kNumBoardsPerBlock           = 1;  // 1 is empirically the fastest
-static constexpr int kThreadsPerBoardInSimulation = 8;  // Change this value between 1 and 32 as needed
+static constexpr int kNumBoardsPerBlock           = 1;   // 1 is empirically the fastest
+static constexpr int kThreadsPerBoardInSimulation = 32;  // Change this value between 1 and 32 as needed
+
+static_assert(
+    kThreadsPerBoardInSimulation > 0 && kThreadsPerBoardInSimulation <= 32,
+    "kThreadsPerBoardInSimulation must be between 1 and 32"
+);
+static_assert(
+    kNumBoardsPerBlock == 1 || kThreadsPerBoardInSimulation == 32,
+    "kNumBoardsPerBlock must be 1 if kThreadsPerBoardInSimulation is not 32"
+);
 
 __global__ void SimulateCheckersGames(
     const board_t* d_whites,         // [n_simulation_counts]
