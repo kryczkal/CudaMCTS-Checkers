@@ -25,7 +25,7 @@ static constexpr u8 kOutcomeNone  = 0;
 //
 // Example: kNumBoardsPerBlock = 4 means each block has 4 * 32 = 128 threads.
 // -----------------------------------------------------------------------------
-static constexpr int kNumBoardsPerBlock = 10;
+static constexpr int kNumBoardsPerBlock = 1;  // 1 is empirically the fastest
 
 __global__ void SimulateCheckersGames(
     const board_t* d_whites,         // [n_simulation_counts]

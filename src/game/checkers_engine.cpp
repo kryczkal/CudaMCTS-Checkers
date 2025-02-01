@@ -183,7 +183,6 @@ bool CheckersEngine::CheckAndMaybeContinueCapture(move_t last_move)
 
 void CheckersEngine::HandlePromotions()
 {
-    // TODO: Test this
     board_.kings |= (board_.white & BoardConstants::kTopBoardEdgeMask);
     board_.kings |= (board_.black & BoardConstants::kBottomBoardEdgeMask);
 }

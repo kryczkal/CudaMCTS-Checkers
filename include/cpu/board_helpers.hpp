@@ -97,9 +97,6 @@ constexpr i8 GetParityOffset(RowParity parity) { return parity == RowParity::kEv
 
 constexpr RowParity GetRowParity(board_index_t index)
 {
-    //    assert(index < BoardConstants::kBoardSize);
-
-    // TODO: Validate in assembly that this modulo is optmized to & with a bitmask
     return (index % (2 * BoardConstants::kBoardEdgeLength)) >= BoardConstants::kBoardEdgeLength ? RowParity::kOdd
                                                                                                 : RowParity::kEven;
 }

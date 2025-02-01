@@ -1,5 +1,6 @@
 #include "game/checkers_game.hpp"
 #include "common/checkers_defines.hpp"
+#include "common/parallel.hpp"
 #include "cpu/board_helpers.hpp"
 #include "game/checkers_engine.hpp"
 
@@ -88,9 +89,10 @@ void CheckersGame::PlayAiAi(const std::string &recordFile)
             checkers::mcts::MonteCarloTree tree(engine_->GetBoard(), side_to_move);
             float time_budget = ai_time_limit_;
 
-            checkers::move_t best_move = tree.Run(time_budget - 0.1f);  // reserve 0.1s for overhead
-            auto finish                = std::chrono::steady_clock::now();
-            float elapsed              = std::chrono::duration<float>(finish - start).count();
+            checkers::move_t best_move =
+                tree.RunParallel(time_budget - 0.1f, checkers::kNumThreadsCPU);  // reserve 0.1s for overhead
+            auto finish   = std::chrono::steady_clock::now();
+            float elapsed = std::chrono::duration<float>(finish - start).count();
 
             // Apply bestMove
             bool success = engine_->ApplyMove(best_move, false);
@@ -130,9 +132,10 @@ void CheckersGame::PlayAiAi(const std::string &recordFile)
             checkers::mcts::MonteCarloTree tree(engine_->GetBoard(), side_to_move);
             float time_budget = ai_time_limit_;
 
-            checkers::move_t best_move = tree.Run(time_budget - 0.1f);  // reserve 0.1s for overhead
-            auto finish                = std::chrono::steady_clock::now();
-            float elapsed              = std::chrono::duration<float>(finish - start).count();
+            checkers::move_t best_move =
+                tree.RunParallel(time_budget - 0.1f, checkers::kNumThreadsCPU);  // reserve 0.1s for overhead
+            auto finish   = std::chrono::steady_clock::now();
+            float elapsed = std::chrono::duration<float>(finish - start).count();
             // Apply bestMove
             bool success = engine_->ApplyMove(best_move, false);
             if (!success) {
@@ -238,9 +241,10 @@ void CheckersGame::Play(const std::string &recordFile)
             checkers::mcts::MonteCarloTree tree(engine_->GetBoard(), side_to_move);
             float time_budget = ai_time_limit_;
 
-            checkers::move_t best_move = tree.Run(time_budget - 0.1f);  // reserve 0.1s for overhead
-            auto finish                = std::chrono::steady_clock::now();
-            float elapsed              = std::chrono::duration<float>(finish - start).count();
+            checkers::move_t best_move =
+                tree.RunParallel(time_budget - 0.1f, checkers::kNumThreadsCPU);  // reserve 0.1s for overhead
+            auto finish   = std::chrono::steady_clock::now();
+            float elapsed = std::chrono::duration<float>(finish - start).count();
             //            if (elapsed > aiTimeLimit_) {
             //                // AI took too long => it loses
             //                gui_->DisplayMessage("AI timed out!");

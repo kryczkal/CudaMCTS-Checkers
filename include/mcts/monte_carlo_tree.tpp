@@ -10,6 +10,7 @@ template <MaxComparable EvalType, EvalFunction<EvalType> auto EvalFunc>
 move_t MonteCarloTree::SelectBestMove(const MonteCarloTreeNode *node)
 {
     assert(node != nullptr);
+    std::cout << "Total simulations: " << node->visits_ << std::endl;
 
     if (node->children_.empty()) {
         // Handle the case where there are no children.

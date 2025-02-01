@@ -6,8 +6,6 @@
 namespace checkers::cpu::move_gen
 {
 
-// TODO: Split into .tpp
-
 // Flags
 static constexpr u8 kIsPieceOnBoardFlagIndex = 0;
 // Adjacent pieces

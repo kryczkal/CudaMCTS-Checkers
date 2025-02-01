@@ -1,6 +1,7 @@
 #ifndef MCTS_CHECKERS_INCLUDE_MCTS_MONTE_CARLO_TREE_HPP_
 #define MCTS_CHECKERS_INCLUDE_MCTS_MONTE_CARLO_TREE_HPP_
 
+#include <mutex>
 #include <unordered_map>
 #include <vector>
 #include "common/checkers_defines.hpp"
@@ -11,7 +12,7 @@
 
 namespace checkers::mcts
 {
-static constexpr u64 kMaxTotalSimulations = 10000;
+static constexpr u64 kMaxTotalSimulations = 5e3;
 static constexpr u64 kSimulationMaxDepth  = 100;
 static constexpr f32 kExplorationConstant = 1.41f;
 
@@ -37,12 +38,15 @@ class MonteCarloTree
      *        and returns the best move from the root.
      */
     checkers::move_t Run(f32 time_seconds);
+    move_t RunParallel(f32 time_seconds, size_t num_threads);
 
     /**
      * @brief Move root to the child that was chosen. This is optional if you want to
      *        keep the tree from move to move. You can discard the old tree though.
      */
     void DescendTree(const move_t move);
+
+    void IterationParallel();
 
     private:
     /**
@@ -91,6 +95,9 @@ class MonteCarloTree
 
     private:
     MonteCarloTreeNode* root_{};
+    void BackPropagateParallel(std::vector<MonteCarloTreeNode*> nodes, const std::vector<SimulationResult>& results);
+    std::vector<MonteCarloTreeNode*> ExpandNodeParallel(MonteCarloTreeNode* node);
+    MonteCarloTreeNode* SelectNodeParallel();
 };
 
 class MonteCarloTreeNode
@@ -128,6 +135,7 @@ class MonteCarloTreeNode
 
     // Map of moves => child
     std::unordered_map<checkers::move_t, MonteCarloTreeNode*> children_;
+    std::mutex node_mutex;
 };
 
 }  // namespace checkers::mcts

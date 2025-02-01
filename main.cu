@@ -16,11 +16,10 @@ int main()
     auto gui = std::make_shared<checkers::CliGui>();
     game.SetGui(gui);
 
-    // Optional: Load partial game from a record file
     //     game.LoadGameRecord("game_histories/test_game_16.txt");
 
     // Play until completion, record into "game_record.txt"
-    game.PlayAiAi("game_record.txt");
+    game.Play("game_record.txt");
 
     return 0;
 }
