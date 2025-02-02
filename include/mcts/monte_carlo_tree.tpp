@@ -7,7 +7,7 @@
 namespace checkers::mcts
 {
 template <MaxComparable EvalType, EvalFunction<EvalType> auto EvalFunc>
-move_t MonteCarloTree::SelectBestMove(const MonteCarloTreeNode *node)
+move_t MonteCarloTree::SelectBestMove(const MonteCarloTreeNode *node) const
 {
     assert(node != nullptr);
     std::cout << "Total simulations: " << node->visits_ << std::endl;

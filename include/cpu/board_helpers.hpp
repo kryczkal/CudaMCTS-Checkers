@@ -7,7 +7,7 @@
 namespace checkers::cpu
 {
 
-static void SimpleRand(u32& state)
+[[maybe_unused]] static void SimpleRand(u32& state)
 {
     static constexpr u32 COEF1 = 36969;
     static constexpr u32 COEF2 = 65535;

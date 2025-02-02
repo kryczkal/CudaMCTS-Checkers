@@ -1,11 +1,10 @@
 #ifndef MCTS_CHECKERS_INCLUDE_GAME_CHECKERS_GAME_HPP_
 #define MCTS_CHECKERS_INCLUDE_GAME_CHECKERS_GAME_HPP_
 
-#ifndef CHECKERS_GAME_HPP
-#define CHECKERS_GAME_HPP
-
+#include <functional>
 #include <memory>
 #include <string>
+#include <unordered_map>
 #include <vector>
 #include "cpu/board.hpp"
 #include "game/checkers_engine.hpp"
@@ -14,10 +13,11 @@
 namespace checkers
 {
 
+// Defines the available game modes.
+enum class GameMode { HumanVsHuman, HumanVsAi, AiVsAi };
+
 /**
- * @brief Interface for a GUI (or CLI).
- *        You can implement a class that shows the board, messages,
- *        and collects user input in whichever way you like.
+ * @brief Interface for a GUI/CLI to interact with the Checkers game.
  */
 class ICheckersGui
 {
@@ -29,84 +29,77 @@ class ICheckersGui
 };
 
 /**
- * @brief The CheckersGame manages an interactive game flow,
- *        orchestrating the CheckersEngine and (optionally) a GUI or CLI for user input.
+ * @brief The CheckersGame class orchestrates game flow for Checkers.
+ *        It supports Human vs Human, Human vs AI, and AI vs AI game modes.
+ *        Additionally, it provides a simple command parser for special commands.
  */
 class CheckersGame
 {
     public:
     /**
-     * @brief Constructor: sets up a new game from a certain board with an engine and a "human turn" side.
+     * @brief Constructor.
+     *
+     * @param initialBoard The starting board configuration.
+     * @param startTurn The side to move first.
+     * @param mode The game mode (HumanVsHuman, HumanVsAi, AiVsAi).
+     * @param humanTurn For modes involving humans, which turn the human controls.
      */
-    CheckersGame(const checkers::cpu::Board& initialBoard, checkers::Turn startTurn, checkers::Turn humanTurn);
+    CheckersGame(
+        const checkers::cpu::Board& initialBoard, checkers::Turn startTurn, GameMode mode,
+        checkers::Turn humanTurn = checkers::Turn::kWhite
+    );
 
-    /**
-     * @brief Sets how many seconds the human has to input a move.
-     */
     void SetHumanTimeLimit(float seconds);
-
-    /**
-     * @brief Sets how many seconds the AI is allowed to think per move.
-     */
     void SetAiTimeLimit(float seconds);
-
-    /**
-     * @brief Sets the GUI/CLI instance for user interaction.
-     */
     void SetGui(std::shared_ptr<ICheckersGui> gui);
+    void SetSimulationBackend(mcts::SimulationBackend backend);
 
     /**
-     * @brief Runs the game loop until completion, optionally saving the move record to a file.
+     * @brief Runs the game loop until completion or until a quit command is issued.
+     *
+     * @param recordFile Optional filename in which to save the move record.
      */
     void Play(const std::string& recordFile = "");
 
     /**
-     * @brief Runs the game loop until completion using two Ai's against each other, optionally saving the move record
-     * to a file.
-     */
-    void PlayAiAi(const std::string& recordFile = "");
-
-    /**
-     * @brief Loads a move record from a text file with lines like: "d2-e3" or "d2:f4:d6".
-     *        Applies them one by one to the engine state.
+     * @brief Loads a game record from file and applies the moves.
      */
     bool LoadGameRecord(const std::string& inputFile);
 
     private:
-    /**
-     * @brief Helper to parse a single user input line ("d2-e3" or "d2:f4:d6")
-     *        and apply it to the engine. Returns success or failure with a message.
-     */
+    // Helper for parsing move notation from human input.
     std::tuple<bool, std::string, move_t> AttemptMoveFromNotation(const std::string& move_line);
-
-    /**
-     * @brief Splits a multi-capture "d2:f4:d6" into partial moves and applies them in sequence.
-     */
     bool ApplyMultiCapture(const std::vector<std::string>& fields);
-
-    /**
-     * @brief Converts notation like 'd2' or 'f4' to a 0..31 index, matching your 32-square layout.
-     */
     checkers::board_index_t NotationToIndex(const std::string& cell) const;
-
-    /**
-     * @brief Saves the entire move history to a text file or prints to stdout if empty file string.
-     */
+    std::string SquareToNotation(checkers::board_index_t sq) const;
     void SaveRecord(const std::string& recordFile) const;
 
-    private:
+    // Command parser related methods.
+    void InitializeCommandParser();
+    bool ProcessCommand(const std::string& input);
+    void CommandHelp();
+    void CommandDumpBoard();
+    void CommandSave();
+    void CommandQuit();
+
     std::unique_ptr<checkers::CheckersEngine> engine_;
     checkers::Turn human_turn_;
+    GameMode game_mode_;
     float human_time_limit_{60.0f};
     float ai_time_limit_{3.0f};
     std::shared_ptr<ICheckersGui> gui_;
-
-    // For storing all moves in notation form.
     std::vector<std::string> move_history_;
+
+    // AI simulation backend (CPU or GPU).
+    mcts::SimulationBackend simulation_backend_{mcts::SimulationBackend::GPU};
+
+    // Flag used by the command parser to quit the game loop.
+    bool quit_{false};
+
+    // Command map: maps command strings to their handler functions.
+    std::unordered_map<std::string, std::function<void()>> command_map_;
 };
 
 }  // namespace checkers
-
-#endif  // CHECKERS_GAME_HPP
 
 #endif  // MCTS_CHECKERS_INCLUDE_GAME_CHECKERS_GAME_HPP_
