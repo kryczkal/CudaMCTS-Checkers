@@ -15,6 +15,7 @@ namespace checkers::mcts
 static constexpr u64 kMaxTotalSimulations = 12e3;
 static constexpr u64 kSimulationMaxDepth  = 100;
 static constexpr f32 kExplorationConstant = 1.41f;
+static constexpr f64 kRunCallOverhead     = 1e-2;
 
 class MonteCarloTreeNode;
 

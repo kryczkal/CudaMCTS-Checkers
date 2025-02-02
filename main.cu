@@ -9,8 +9,8 @@ int main()
     board.CreateStandard();
     checkers::CheckersGame game(board, checkers::Turn::kWhite, checkers::Turn::kWhite);
 
-    game.SetHumanTimeLimit(1000.0f);  // 60 seconds for human
-    game.SetAiTimeLimit(5.0f);
+    game.SetHumanTimeLimit(1000.0f);
+    game.SetAiTimeLimit(1.0f);
 
     // Attach CLI GUI
     auto gui = std::make_shared<checkers::CliGui>();
@@ -20,7 +20,7 @@ int main()
 
     // Play until completion, record into "game_record.txt"
     // TODO: Doesn't handle draw in game loop
-    game.PlayAiAi("game_record.txt");
+    game.Play("game_record.txt");
 
     return 0;
 }
