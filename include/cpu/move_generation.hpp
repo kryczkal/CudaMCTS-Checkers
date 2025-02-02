@@ -1,6 +1,11 @@
 #ifndef MCTS_CHECKERS_INCLUDE_CPU_MOVE_GENERATION_HPP_
 #define MCTS_CHECKERS_INCLUDE_CPU_MOVE_GENERATION_HPP_
 
+#include "algorithm"
+#include "execution"
+#include "numeric"
+#include "vector"
+
 #include "cpu/board_helpers.hpp"
 
 namespace checkers::cpu::move_gen
@@ -83,7 +88,6 @@ static inline void TryCapture(
     const board_index_t ll_jump = GetAdjacentIndex<Direction::kDownLeft>(ll);
     const board_index_t lr_jump = GetAdjacentIndex<Direction::kDownRight>(lr);
 
-    // We replicate the bit-flag logic in a straightforward manner:
     // Each direction might be invalid if on edge, or if missing an enemy piece, or if the jump square is occupied.
     flags |= (IsOnEdge<Direction::kUpLeft>(figure_idx) || IsOnEdge<Direction::kUpLeft>(ul) ||
               !IsPieceAt(enemy_pieces, ul) || IsPieceAt(all_pieces, ul_jump))
@@ -268,38 +272,42 @@ void GenerateMoves(
     move_flags_t *d_move_capture_mask, move_flags_t *d_per_board_move_flags, const u64 n_boards
 )
 {
-    for (u64 i = 0; i < n_boards * 32ULL; i++) {
-        const u64 board_idx            = i / 32ULL;
-        const u64 figure_idx_int       = i % 32ULL;
-        const board_index_t figure_idx = static_cast<board_index_t>(figure_idx_int);
+    // Create a container with board indices [0, n_boards)
+    std::vector<u64> board_indices(n_boards);
+    std::iota(board_indices.begin(), board_indices.end(), 0);
 
-        // Identify the output location(s) for this piece
-        // We have up to kNumMaxMovesPerPiece moves stored for each piece.
-        const u64 base_moves_idx =
-            (board_idx * BoardConstants::kBoardSize + figure_idx) * static_cast<u64>(kNumMaxMovesPerPiece);
-
-        move_t *out_moves_ptr          = &d_moves[base_moves_idx];
-        u8 *out_move_count_ptr         = &d_move_counts[board_idx * BoardConstants::kBoardSize + figure_idx];
-        move_flags_t *out_capture_mask = &d_move_capture_mask[board_idx * BoardConstants::kBoardSize + figure_idx];
-        move_flags_t &per_board_flags  = d_per_board_move_flags[board_idx];
-
-        // Clear the outputs for this piece
-        *out_move_count_ptr = 0;
-        *out_capture_mask   = 0;
-
-        // Retrieve the piece bitmasks for this board
+    // Use parallel execution to process each board concurrently.
+    std::for_each(std::execution::par, board_indices.begin(), board_indices.end(), [=](u64 board_idx) {
+        // Retrieve the piece bitmasks for this board.
         board_t white_pieces = d_whites[board_idx];
         board_t black_pieces = d_blacks[board_idx];
         board_t kings        = d_kings[board_idx];
 
-        // Generate
-        GenerateMovesForSinglePiece<turn>(
-            figure_idx, white_pieces, black_pieces, kings, out_moves_ptr, *out_move_count_ptr, *out_capture_mask,
-            per_board_flags
-        );
-    }
-}
+        // Process each piece on the board sequentially.
+        for (u64 figure_idx_int = 0; figure_idx_int < BoardConstants::kBoardSize; figure_idx_int++) {
+            const board_index_t figure_idx = static_cast<board_index_t>(figure_idx_int);
 
+            // Calculate the base index for the moves of the current piece.
+            const u64 base_moves_idx =
+                (board_idx * BoardConstants::kBoardSize + figure_idx) * static_cast<u64>(kNumMaxMovesPerPiece);
+
+            move_t *out_moves_ptr          = &d_moves[base_moves_idx];
+            u8 *out_move_count_ptr         = &d_move_counts[board_idx * BoardConstants::kBoardSize + figure_idx];
+            move_flags_t *out_capture_mask = &d_move_capture_mask[board_idx * BoardConstants::kBoardSize + figure_idx];
+            move_flags_t &per_board_flags  = d_per_board_move_flags[board_idx];
+
+            // Clear the outputs for this piece.
+            *out_move_count_ptr = 0;
+            *out_capture_mask   = 0;
+
+            // Generate moves for this single piece.
+            GenerateMovesForSinglePiece<turn>(
+                figure_idx, white_pieces, black_pieces, kings, out_moves_ptr, *out_move_count_ptr, *out_capture_mask,
+                per_board_flags
+            );
+        }
+    });
+}
 }  // namespace checkers::cpu::move_gen
 
 #endif  // MCTS_CHECKERS_INCLUDE_CPU_MOVE_GENERATION_HPP_

@@ -1,4 +1,3 @@
-#include "cpu/capture_lookup_table.hpp"
 #include <array>
 #include "common/checkers_defines.hpp"
 #include "cpu/board_helpers.hpp"

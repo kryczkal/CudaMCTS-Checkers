@@ -10,7 +10,7 @@ namespace checkers
 /**
  * @brief Helper function to convert an index 0..31 to e.g. 'd2' in checkers notation for printing.
  */
-static std::string IndexToNotation(checkers::board_index_t idx)
+[[maybe_unused]] static std::string IndexToNotation(checkers::board_index_t idx)
 {
     int row        = idx / 4;  // from top
     int col_offset = idx % 4;

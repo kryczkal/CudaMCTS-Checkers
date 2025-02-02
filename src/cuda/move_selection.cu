@@ -12,6 +12,10 @@ __device__ move_t SelectRandomMoveForSingleBoard(
     const u8* move_counts, const move_flags_t* capture_masks, const move_flags_t per_board_flags, u32& seed
 )
 {
+    UNUSED(white_bits);
+    UNUSED(black_bits);
+    UNUSED(king_bits);
+
     // Detect if the board has a capture flagged
     const bool capture_required = ReadFlag(per_board_flags, MoveFlagsConstants::kCaptureFound);
 

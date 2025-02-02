@@ -20,7 +20,7 @@ int main()
 
     // Play until completion, record into "game_record.txt"
     // TODO: Doesn't handle draw in game loop
-    game.Play("game_record.txt");
+    game.PlayAiAi("game_record.txt");
 
     return 0;
 }
