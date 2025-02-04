@@ -89,10 +89,9 @@ void CheckersGame::PlayAiAi(const std::string &recordFile)
             checkers::mcts::MonteCarloTree tree(engine_->GetBoard(), side_to_move);
             float time_budget = ai_time_limit_;
 
-            checkers::move_t best_move =
-                tree.RunParallel(time_budget - mcts::kRunCallOverhead, checkers::kNumThreadsCPU);
-            auto end      = std::chrono::steady_clock::now();
-            float elapsed = std::chrono::duration<float>(end - start).count();
+            checkers::move_t best_move = tree.Run(time_budget - mcts::kRunCallOverhead, checkers::kNumThreadsCPU);
+            auto end                   = std::chrono::steady_clock::now();
+            float elapsed              = std::chrono::duration<float>(end - start).count();
             std::cout << "AI 1 took " << elapsed << " seconds\n";
 
             // Apply bestMove
@@ -133,10 +132,9 @@ void CheckersGame::PlayAiAi(const std::string &recordFile)
             checkers::mcts::MonteCarloTree tree(engine_->GetBoard(), side_to_move);
             float time_budget = ai_time_limit_;
 
-            checkers::move_t best_move =
-                tree.RunParallel(time_budget - mcts::kRunCallOverhead, checkers::kNumThreadsCPU);
-            auto end      = std::chrono::steady_clock::now();
-            float elapsed = std::chrono::duration<float>(end - start).count();
+            checkers::move_t best_move = tree.Run(time_budget - mcts::kRunCallOverhead, checkers::kNumThreadsCPU);
+            auto end                   = std::chrono::steady_clock::now();
+            float elapsed              = std::chrono::duration<float>(end - start).count();
             std::cout << "AI 2 took " << elapsed << " seconds\n";
 
             // Apply bestMove
@@ -245,10 +243,9 @@ void CheckersGame::Play(const std::string &recordFile)
             float time_budget = ai_time_limit_;
             auto end          = std::chrono::steady_clock::now();
             float elapsed     = std::chrono::duration<float>(end - start).count();
-            std::cout << "AI took " << elapsed << " seconds\n";
 
-            checkers::move_t best_move =
-                tree.RunParallel(time_budget - mcts::kRunCallOverhead, checkers::kNumThreadsCPU);
+            checkers::move_t best_move = tree.Run(time_budget - mcts::kRunCallOverhead, checkers::kNumThreadsCPU);
+            std::cout << "AI took " << elapsed << " seconds\n";
             // Apply bestMove
             bool success = engine_->ApplyMove(best_move, false);
             if (!success) {

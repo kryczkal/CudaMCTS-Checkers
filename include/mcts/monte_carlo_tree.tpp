@@ -7,14 +7,13 @@
 namespace checkers::mcts
 {
 template <MaxComparable EvalType, EvalFunction<EvalType> auto EvalFunc>
-move_t MonteCarloTree::SelectBestMove(const MonteCarloTreeNode *node)
+move_t MonteCarloTree::SelectBestMove(const MonteCarloTreeNode *node) const
 {
     assert(node != nullptr);
     std::cout << "Total simulations: " << node->visits_ << std::endl;
 
     if (node->children_.empty()) {
         // Handle the case where there are no children.
-        // This could indicate a terminal node. Return an invalid move or handle accordingly.
         std::cerr << "SelectBestMove called on a node with no children." << std::endl;
         return kInvalidMove;
     }
