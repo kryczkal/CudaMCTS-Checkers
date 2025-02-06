@@ -1,12 +1,12 @@
-cmake_minimum_required(VERSION 3.30)
+cmake_minimum_required(VERSION 3.20)
 project(MCTS_CHECKERS CUDA CXX)
 set(PROJECT_LIB_NAME ${PROJECT_NAME}-lib)
 
 ############################# Language Standards #############################
 set(CMAKE_CUDA_STANDARD 20)
-set(CMAKE_CUDA_STANDARD_REQUIRED ON)
+set(CMAKE_CUDA_STANDARD_REQUIRED OFF)
 set(CMAKE_CXX_STANDARD 20)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_STANDARD_REQUIRED OFF)
 
 ############################# Cuda Specific Flags ############################
 set(CMAKE_CUDA_SEPARABLE_COMPILATION ON)
@@ -53,5 +53,7 @@ target_link_libraries(${PROJECT_NAME} PRIVATE ${PROJECT_LIB_NAME})
 add_subdirectory(tests)
 
 ################################# TBB Library #################################
-find_package(TBB REQUIRED)
-target_link_libraries(${PROJECT_LIB_NAME} PUBLIC TBB::tbb)
+message("Depending on the machine, std::execution may require to link against intel TBB library")
+message("In case of errors related to linking with TBB, download the TBB library and uncomment the appropiate lines in CMakeLists.txt")
+# find_package(TBB REQUIRED)
+# target_link_libraries(${PROJECT_LIB_NAME} PUBLIC TBB::tbb)

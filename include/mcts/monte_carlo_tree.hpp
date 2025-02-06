@@ -128,7 +128,7 @@ class Tree
 #ifdef __cpp_concepts
     template <MaxComparable EvalType, EvalFunction<EvalType> auto EvalFunc>
 #else
-    template <typename EvalType, auto Func>
+    template <typename EvalType, auto EvalFunc>
 #endif
     checkers::move_t SelectBestMove(const Node* node) const;
 
