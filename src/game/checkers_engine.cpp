@@ -1,12 +1,13 @@
-#include "game/checkers_engine.hpp"
 #include <algorithm>
 #include <iostream>
+#include <optional>
 
 #include "common/checkers_defines.hpp"
 #include "cpu/apply_move.hpp"
 #include "cpu/board_helpers.hpp"
 #include "cpu/launchers.hpp"
 #include "cpu/move_generation.hpp"
+#include "game/checkers_engine.hpp"
 
 namespace checkers
 {
@@ -67,6 +68,21 @@ MoveGenResult CheckersEngine::GenerateMoves()
 {
     using namespace checkers::cpu::move_gen;
 
+    if (multi_capture_.has_value()) {
+        // We're in the middle of a multi-capture sequence
+        const auto &info = multi_capture_.value();
+        board_index_t sq = info.sq;
+        MoveGenResult result{};
+        for (u8 i = 0; i < info.count; i++) {
+            result.h_moves[sq * MoveGenResult::kMovesPerPiece + i] = info.moves[i];
+        }
+        result.h_move_counts[sq]    = info.count;
+        result.h_capture_masks[sq]  = info.local_capture_mask;
+        result.h_per_board_flags[0] = 1 << MoveFlagsConstants::kCaptureFound;
+        result.h_per_board_flags[0] |= 1 << MoveFlagsConstants::kMoveFound;
+        return result;
+    }
+
     MoveGenResult result{};
     if (current_turn_ == Turn::kBlack) {
         cpu::move_gen::GenerateMoves<Turn::kBlack>(
@@ -90,6 +106,8 @@ bool CheckersEngine::ApplyMove(move_t mv, bool validate)
     using namespace checkers::cpu::move_gen;
     using namespace checkers::cpu::apply_move;
 
+    multi_capture_.reset();
+
     // Basic check if the move is feasible. We'll generate all possible single-step or single-jump moves.
     if (validate) {
         MoveGenResult result = GenerateMoves();
@@ -107,9 +125,6 @@ bool CheckersEngine::ApplyMove(move_t mv, bool validate)
         }
     }
 
-    // We apply exactly one single-jump or step
-    board_index_t from_sq = DecodeMove<MovePart::From>(mv);
-
     // Save old board to detect a capture
     board_t old_enemy_board = (current_turn_ == Turn::kWhite ? board_.black : board_.white);
 
@@ -125,7 +140,7 @@ bool CheckersEngine::ApplyMove(move_t mv, bool validate)
         }
     }
 
-    UpdateNonReversibleCount(was_capture, from_sq);
+    UpdateNonReversibleCount(was_capture, mv);
 
     // If capturing, check if we can continue from 'to_sq'. If yes, do NOT switch turn.
     bool multi_cap_continues = false;
@@ -177,6 +192,16 @@ bool CheckersEngine::CheckAndMaybeContinueCapture(move_t last_move)
         return false;
     }
 
+    multi_capture_.reset();
+    MultiCaptureNextMovesInfo multi_capture_next_moves_info;
+    multi_capture_next_moves_info.sq = to_sq;
+    for (u8 i = 0; i < local_count; i++) {
+        multi_capture_next_moves_info.moves[i] = local_moves[i];
+    }
+    multi_capture_next_moves_info.count              = local_count;
+    multi_capture_next_moves_info.local_capture_mask = local_capture_mask;
+    multi_capture_.emplace(multi_capture_next_moves_info);
+
     // There's at least one capturing sub-move => we do NOT switch turns
     return true;
 }
@@ -187,11 +212,13 @@ void CheckersEngine::HandlePromotions()
     board_.kings |= (board_.black & BoardConstants::kBottomBoardEdgeMask);
 }
 
-void CheckersEngine::UpdateNonReversibleCount(bool was_capture, checkers::board_index_t from_sq)
+void CheckersEngine::UpdateNonReversibleCount(bool was_capture, move_t mv)
 {
     using namespace checkers::cpu;
     // If a capture or the from-square was not a king, reset to 0
-    const bool from_was_king = ReadFlag(board_.kings, from_sq);
+    board_index_t to_sq      = move_gen::DecodeMove<move_gen::MovePart::To>(mv);
+    board_index_t from_sq    = move_gen::DecodeMove<move_gen::MovePart::From>(mv);
+    const bool from_was_king = ReadFlag(board_.kings, to_sq) || ReadFlag(board_.kings, from_sq);
 
     if (was_capture || !from_was_king) {
         non_reversible_count_ = 0;

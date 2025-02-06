@@ -3,29 +3,53 @@
 
 #include <atomic>
 #include <mutex>
+#include <ostream>
 #include <unordered_map>
 #include <vector>
 
 #include "common/checkers_defines.hpp"
+#ifdef __cpp_concepts
 #include "common/concepts.hpp"
+#endif
 #include "cpu/board.hpp"
 #include "game/checkers_engine.hpp"
 #include "simulation_results.hpp"
 
 namespace checkers::mcts
 {
-static constexpr u64 kMaxTotalSimulations = 12e3;
-static constexpr u64 kSimulationMaxDepth  = 100;
-static constexpr f32 kExplorationConstant = 1.41f;
-static constexpr f64 kRunCallOverhead     = 1e-2;
+static constexpr u64 kMaxTotalSimulationsGpu = 8e2;
+static constexpr u64 kSimulationMaxDepth     = 100;
+static constexpr f32 kExplorationConstant    = 1.41f;
+static constexpr f64 kRunCallOverhead        = 1e-2;
 
-struct MonteCarloRunInfo {
+/**
+ * @brief The MonteCarloBackend enum is used to select the backend for the MCTS simulations.
+ */
+enum class Backend { kCpu, kGpu, kSingleThreadedCpu };
+
+/**
+ * @brief The MonteCarloRunInfo struct holds the results of a Monte Carlo Tree Search run.
+ */
+struct TreeRunInfo {
     u64 total_simulations;
     f64 predicted_win_rate;
     move_t best_move;
+    Backend used_backend;
+
+    friend std::ostream& operator<<(std::ostream& os, const TreeRunInfo& info)
+    {
+        os << "Total simulations: " << info.total_simulations << std::endl;
+        os << "Predicted win rate: " << info.predicted_win_rate << std::endl;
+        std::string backend_str;
+        backend_str = info.used_backend == Backend::kCpu ? "CPU" : backend_str;
+        backend_str = info.used_backend == Backend::kSingleThreadedCpu ? "Single-threaded CPU" : backend_str;
+        backend_str = info.used_backend == Backend::kGpu ? "GPU" : backend_str;
+        os << "Backend: " << (backend_str.empty() ? "Unknown" : backend_str) << std::endl;
+        return os;
+    }
 };
 
-class MonteCarloTreeNode;
+class Node;
 
 /**
  * @brief MonteCarloTree is a standard MCTS manager that:
@@ -36,14 +60,14 @@ class MonteCarloTreeNode;
  * We embed a `CheckersEngine` in each node to keep full game logic for partial
  * single-jump moves, multi-captures, promotion, etc.
  */
-class MonteCarloTree
+class Tree
 {
     public:
     // -------------------------------------------------------------------------
     // Creation / Destruction
     // -------------------------------------------------------------------------
-    explicit MonteCarloTree(checkers::cpu::Board board, checkers::Turn turn);
-    ~MonteCarloTree();
+    explicit Tree(checkers::cpu::Board board, checkers::Turn turn, Backend backend = Backend::kCpu);
+    ~Tree();
 
     // -------------------------------------------------------------------------
     // Public methods
@@ -65,8 +89,8 @@ class MonteCarloTree
     // -------------------------------------------------------------------------
     // Public accessors
     // -------------------------------------------------------------------------
-    u64 GetTotalSimulations() const;
-    MonteCarloRunInfo GetRunInfo() const;
+    [[nodiscard]] u64 GetTotalSimulations() const;
+    [[nodiscard]] TreeRunInfo GetRunInfo() const;
 
     // -------------------------------------------------------------------------
     // Private methods
@@ -75,34 +99,38 @@ class MonteCarloTree
     private:
     void Iteration();
 
-    MonteCarloTreeNode* SelectNode();
+    Node* SelectNode();
     /**
      * @brief Expand the node if it's not terminal. For each possible move from
      *        that node, create a child node. Return the newly created child nodes.
      * @param node: The node to expand.
      */
-    static std::vector<MonteCarloTreeNode*> ExpandNode(MonteCarloTreeNode* node);
+    static std::vector<Node*> ExpandNode(Node* node);
 
     /**
      * @brief Simulate each node via random GPU simulations. Return the final results
      *        from the perspective of the side to move in each node.
      * @param nodes: The nodes to simulate from.
      */
-    static std::vector<SimulationResult> SimulateNodes(const std::vector<MonteCarloTreeNode*>& nodes);
+    std::vector<SimulationResult> SimulateNodes(const std::vector<Node*>& nodes);
 
     /**
      * @brief Backpropagate the results of the simulations to the nodes.
      * @param nodes: The nodes to start backpropagation from.
      * @param results: The results of the simulations.
      */
-    void BackPropagate(std::vector<MonteCarloTreeNode*> nodes, const std::vector<SimulationResult>& results);
+    void BackPropagate(std::vector<Node*> nodes, const std::vector<SimulationResult>& results);
 
     /**
      * @brief Utility function that yields the best move from the root according
      *        to a certain evaluation (here: highest visited-child or highest average).
      */
+#ifdef __cpp_concepts
     template <MaxComparable EvalType, EvalFunction<EvalType> auto EvalFunc>
-    checkers::move_t SelectBestMove(const MonteCarloTreeNode* node) const;
+#else
+    template <typename EvalType, auto Func>
+#endif
+    checkers::move_t SelectBestMove(const Node* node) const;
 
     /**
      * @brief Convert a simulation result from child’s perspective into the
@@ -110,50 +138,52 @@ class MonteCarloTree
      *        is the same as root’s turn, we keep the same score. Otherwise
      *        we invert it:  score -> n_simulations - score.
      */
-    f64 GetScoreFromPerspectiveOfRoot(const MonteCarloTreeNode* node, const SimulationResult& result);
+    f64 GetScoreFromPerspectiveOfRoot(const Node* node, const SimulationResult& result);
 
     /**
      * @brief Utility function to compute a node's "win rate" or average score / visits.
      */
-    static f32 WinRate(const MonteCarloTreeNode* node);
+    static f32 WinRate(const Node* node);
 
     // -------------------------------------------------------------------------
     // Private fields
     // -------------------------------------------------------------------------
 
-    /*
+    /**
      * @brief The root node of the tree.
      */
-    MonteCarloTreeNode* root_{};
+    Node* root_{};
 
-    /*
+    /**
      * @brief A flag to signal the worker threads to stop.
      */
     std::atomic<bool> stop_flag_{false};
+
+    Backend backend_;
 
     // -------------------------------------------------------------------------
     // Friends
     // -------------------------------------------------------------------------
 
-    friend void mcts_worker(MonteCarloTree* tree);
+    friend void mcts_worker(Tree* tree);
 };
 
-class MonteCarloTreeNode
+class Node
 {
     public:
     /**
      * @brief Creates a node from a board+turn. The engine is constructed from these.
      */
-    MonteCarloTreeNode(const cpu::Board& board, Turn turn);
+    Node(const cpu::Board& board, Turn turn);
 
     /**
      * @brief Creates a node from a parent’s engine-based position.
      *        The parent's engine is cloned. Then we apply one partial move if needed externally
      *        (though in ExpandNode we usually do it).
      */
-    MonteCarloTreeNode(const CheckersEngine& engine, MonteCarloTreeNode* parent);
+    Node(const CheckersEngine& engine, Node* parent);
 
-    ~MonteCarloTreeNode();
+    ~Node();
 
     /**
      * @brief A standard UCT formula: (score_ / visits_) + c* sqrt( ln(parent.visits_)/ visits_ )
@@ -169,10 +199,10 @@ class MonteCarloTreeNode
     CheckersEngine engine_;
 
     // Link to parent node
-    MonteCarloTreeNode* parent_{nullptr};
+    Node* parent_{nullptr};
 
     // Map of moves => child
-    std::unordered_map<checkers::move_t, MonteCarloTreeNode*> children_;
+    std::unordered_map<checkers::move_t, Node*> children_;
     std::mutex node_mutex;
 };
 

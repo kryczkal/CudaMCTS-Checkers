@@ -1,3 +1,4 @@
+#include <chrono>
 #include <random>
 #include "common/checkers_defines.hpp"
 #include "cuda/apply_move.cuh"
@@ -111,8 +112,6 @@ std::vector<MoveGenResult> HostGenerateMoves(const std::vector<GpuBoard>& boards
     //--------------------------------------------------------------------------
     // Launch the device kernel
     //--------------------------------------------------------------------------
-    // Each board needs 32 threads (1 thread per board square).
-    // We'll pick a block size and number of blocks accordingly.
     const int kThreadsPerBlock = 256;
     const size_t kTotalThreads = n_boards * 32ULL;
     const int kBlocks          = static_cast<int>((kTotalThreads + kThreadsPerBlock - 1) / kThreadsPerBlock);
@@ -302,13 +301,11 @@ std::vector<move_t> HostSelectBestMoves(
         h_kings[i]  = boards[i].kings;
     }
 
-    // Basic size checks (could be expanded with error handling)
+    // Basic size checks
     const size_t kTotalSquares       = BoardConstants::kBoardSize;
     const size_t kMovesPerPiece      = kNumMaxMovesPerPiece;
     const size_t kTotalMovesPerBoard = kTotalSquares * kMovesPerPiece;
-    if (moves.size() != n_boards * kTotalMovesPerBoard) {
-        // Potentially handle or throw an error. For now, assume correct input.
-    }
+    assert(moves.size() == n_boards * kTotalMovesPerBoard);
 
     //--------------------------------------------------------------------------
     // Allocate device memory
@@ -426,7 +423,7 @@ std::vector<SimulationResult> HostSimulateCheckersGames(const std::vector<Simula
     // Generate random seeds for each of the total simulations
     std::vector<u32> h_seeds(n_total_simulations);
     {
-        std::mt19937 rng(kTrueRandom ? std::random_device{}() : kSeed);
+        std::mt19937 rng(kTrueRandom ? std::chrono::system_clock::now().time_since_epoch().count() : kSeed);
         for (u64 i = 0; i < n_total_simulations; i++) {
             h_seeds[i] = static_cast<u32>(rng());
         }
@@ -440,7 +437,7 @@ std::vector<SimulationResult> HostSimulateCheckersGames(const std::vector<Simula
     board_t* d_kings  = nullptr;
     u8* d_start_turns = nullptr;
     u64* d_sim_counts = nullptr;
-    u8* d_scores      = nullptr;  // size = n_total_simulations
+    u8* d_scores      = nullptr;
     u8* d_seeds       = nullptr;
 
     CHECK_CUDA_ERROR(cudaMalloc(&d_whites, n_simulation_counts * sizeof(board_t)));
@@ -479,8 +476,7 @@ std::vector<SimulationResult> HostSimulateCheckersGames(const std::vector<Simula
     // Launch the simulation kernel
     //--------------------------------------------------------------------------
     //   This kernel populates d_scores with {0,1,2} for each simulation.
-    //   Implementation is the same as shown in your code, except that it
-    //   places final results in d_scores[] for each simulation.
+    //   Places final results in d_scores[] for each simulation.
     //--------------------------------------------------------------------------
     const int kThreadsPerBlock = kNumBoardsPerBlock * kThreadsPerBoardInSimulation;
     const u64 kTotalThreads    = n_total_simulations * kThreadsPerBoardInSimulation;

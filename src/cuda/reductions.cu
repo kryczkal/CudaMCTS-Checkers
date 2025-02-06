@@ -45,7 +45,6 @@ __global__ void blockSumKernel(const u8* __restrict__ g_input, u64* __restrict__
 
 /**
  * @brief Final pass kernel: sums up the block partial sums into a single value.
- *        For simplicity, we run only one block here.
  */
 __global__ void finalSumKernel(const u64* __restrict__ g_blockSums, u64* __restrict__ g_out, size_t n)
 {

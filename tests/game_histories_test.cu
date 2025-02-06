@@ -8,17 +8,21 @@
 namespace checkers
 {
 
-static CheckersGame SetupGame(std::string game_file)
+static Game SetupGame(std::string game_file)
 {
     cpu::Board board;
     board.CreateStandard();
-    CheckersGame game(board, Turn::kWhite, Turn::kWhite);
-    game.LoadGameRecord(game_file);
-    game.SetAiTimeLimit(4.0f);
-    game.SetHumanTimeLimit(120.0f);
+    checkers::GameTypeInfo game_type_info;
+    game_type_info.black_player_type = checkers::PlayerType::kAi;
+    game_type_info.black_backend     = checkers::mcts::Backend::kCpu;
+    game_type_info.white_player_type = checkers::PlayerType::kHuman;
+    game_type_info.white_backend     = checkers::mcts::Backend::kGpu;
+    game_type_info.start_side        = checkers::Turn::kWhite;
+    game_type_info.gui               = std::make_shared<checkers::CliGui>();
+    game_type_info.black_time_limit  = 2.0f;
+    game_type_info.white_time_limit  = 2.0f;
 
-    auto gui = std::make_shared<CliGui>();
-    game.SetGui(gui);
+    checkers::Game game(board, game_type_info);
     return game;
 }
 

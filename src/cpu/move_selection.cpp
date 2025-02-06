@@ -66,8 +66,6 @@ move_t SelectBestMoveForSingleBoard(
     const move_flags_t *capture_masks, move_flags_t per_board_flags, u32 &seed
 )
 {
-    // For consistency, we just call the random version here.
-    // Replace with any custom selection logic if needed.
     return SelectRandomMoveForSingleBoard(
         white_bits, black_bits, king_bits, moves, move_counts, capture_masks, per_board_flags, seed
     );

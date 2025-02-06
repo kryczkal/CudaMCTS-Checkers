@@ -16,47 +16,35 @@ namespace checkers
 namespace
 {
 static constexpr std::string kDumpBoardToken = "dump_board";
-static constexpr std::string kSaveQuitToken  = "save_quit";
+static constexpr std::string kSaveToken      = "save_quit";
+static constexpr f64 time_error_margin       = 1e-1;
 }  // namespace
 
-CheckersGame::CheckersGame(const checkers::cpu::Board &initialBoard, checkers::Turn startTurn, checkers::Turn humanTurn)
-    : human_turn_(humanTurn)
+Game::Game(const checkers::cpu::Board &initial_board, const GameTypeInfo &game_type_info)
 {
+    game_type_info_ = game_type_info;
+
     // Create the engine with the initial board
-    engine_ = std::make_unique<checkers::CheckersEngine>(initialBoard, startTurn);
+    engine_ = std::make_unique<checkers::CheckersEngine>(initial_board, game_type_info.start_side);
+
+    // Set up the GUI
+    gui_ = game_type_info.gui;
 }
 
-void CheckersGame::SetHumanTimeLimit(float seconds) { human_time_limit_ = seconds; }
-
-void CheckersGame::SetAiTimeLimit(float seconds) { ai_time_limit_ = seconds; }
-
-void CheckersGame::SetGui(std::shared_ptr<ICheckersGui> gui) { gui_ = gui; }
-
-void CheckersGame::PlayAiAi(const std::string &recordFile)
+GameResult Game::Play(const std::string &record_file)
 {
-    // TODO: Extract AI move logic to a separate function and Human move logic to another function
-    auto SquareToNotation = [&](checkers::board_index_t sq) {
-        int row       = sq / 4;
-        int colOffset = sq % 4;
-        int col       = (row % 2 == 0) ? (colOffset * 2) : (colOffset * 2 + 1);
-        int rank      = 8 - row;  // row=0 => rank=8
-        char file     = 'a' + col;
-        std::stringstream ss;
-        ss << file << rank;
-        return ss.str();
-    };  // TODO: Move this to a common place
-
     if (!gui_) {
         std::cerr << "No GUI/CLI interface is set. Exiting.\n";
-        return;
+        return GameResult::kInProgress;
     }
 
     // Show initial board
     gui_->DisplayBoard(engine_->GetBoard(), kInvalidMove);
+    GameResult res = GameResult::kInProgress;
 
     while (true) {
         // Check if game ended
-        GameResult res = engine_->CheckGameResult();
+        res = engine_->CheckGameResult();
         if (res != GameResult::kInProgress) {
             // Announce
             std::string msg;
@@ -73,220 +61,135 @@ void CheckersGame::PlayAiAi(const std::string &recordFile)
 
         // Decide whose turn it is
         checkers::Turn side_to_move = engine_->GetCurrentTurn();
-        bool is_first_ai            = (side_to_move == human_turn_);
+        bool is_ai                  = IsAI(side_to_move);
 
-        // Prompt
-        if (is_first_ai) {
-            gui_->DisplayMessage("AI 1 is thinking...");
+        move_t chosen_move = kInvalidMove;
+        std::string notation_move;
 
-            auto moves = engine_->GenerateMoves();
-            if (engine_->CheckGameResult() != GameResult::kInProgress) {
-                break;
-            }
-
-            // Start MCTS
-            auto start = std::chrono::steady_clock::now();
-            checkers::mcts::MonteCarloTree tree(engine_->GetBoard(), side_to_move);
-            float time_budget = ai_time_limit_;
-
-            checkers::move_t best_move = tree.Run(time_budget - mcts::kRunCallOverhead, checkers::kNumThreadsCPU);
-            auto end                   = std::chrono::steady_clock::now();
-            float elapsed              = std::chrono::duration<float>(end - start).count();
-            std::cout << "AI 1 took " << elapsed << " seconds\n";
-
-            // Apply bestMove
-            bool success = engine_->ApplyMove(best_move, false);
-            if (!success) {
-                // No moves => lose
-                gui_->DisplayMessage("AI 1 move is invalid? (Probably a BUG) Forcing loss.");
-                if (side_to_move == checkers::Turn::kWhite) {
-                    res = GameResult::kBlackWin;
-                } else {
-                    res = GameResult::kWhiteWin;
-                }
-                break;
-            }
-            // Log move in notation
-            checkers::board_index_t from_sq =
-                checkers::cpu::move_gen::DecodeMove<checkers::cpu::move_gen::MovePart::From>(best_move);
-            checkers::board_index_t toSq =
-                checkers::cpu::move_gen::DecodeMove<checkers::cpu::move_gen::MovePart::To>(best_move);
-
-            // Convert to e.g. "d2-e3"
-            std::string move_string = SquareToNotation(from_sq) + "-" + SquareToNotation(toSq);
-            move_history_.push_back(move_string);
-
-            gui_->DisplayMessage("AI plays " + move_string);
-            gui_->DisplayBoard(engine_->GetBoard(), best_move);
-        } else {
-            // AI logic
-            gui_->DisplayMessage("AI 2 is thinking...");
-
-            auto moves = engine_->GenerateMoves();
-            if (engine_->CheckGameResult() != GameResult::kInProgress) {
-                break;
-            }
-
-            // Start MCTS
-            auto start = std::chrono::steady_clock::now();
-            checkers::mcts::MonteCarloTree tree(engine_->GetBoard(), side_to_move);
-            float time_budget = ai_time_limit_;
-
-            checkers::move_t best_move = tree.Run(time_budget - mcts::kRunCallOverhead, checkers::kNumThreadsCPU);
-            auto end                   = std::chrono::steady_clock::now();
-            float elapsed              = std::chrono::duration<float>(end - start).count();
-            std::cout << "AI 2 took " << elapsed << " seconds\n";
-
-            // Apply bestMove
-            bool success = engine_->ApplyMove(best_move, false);
-            if (!success) {
-                // No moves => lose
-                gui_->DisplayMessage("AI 2 move is invalid? (Probably a BUG) Forcing loss.");
-                if (side_to_move == checkers::Turn::kWhite) {
-                    res = GameResult::kBlackWin;
-                } else {
-                    res = GameResult::kWhiteWin;
-                }
-                break;
-            }
-            // Log move in notation
-            checkers::board_index_t from_sq =
-                checkers::cpu::move_gen::DecodeMove<checkers::cpu::move_gen::MovePart::From>(best_move);
-            checkers::board_index_t toSq =
-                checkers::cpu::move_gen::DecodeMove<checkers::cpu::move_gen::MovePart::To>(best_move);
-
-            std::string move_string = SquareToNotation(from_sq) + "-" + SquareToNotation(toSq);
-            move_history_.push_back(move_string);
-
-            gui_->DisplayMessage("AI 2 plays " + move_string);
-            gui_->DisplayBoard(engine_->GetBoard(), best_move);
-        }
-    }
-
-    SaveRecord(recordFile);
-}
-void CheckersGame::Play(const std::string &recordFile)
-{
-    if (!gui_) {
-        std::cerr << "No GUI/CLI interface is set. Exiting.\n";
-        return;
-    }
-
-    // Show initial board
-    gui_->DisplayBoard(engine_->GetBoard(), kInvalidMove);
-
-    while (true) {
-        // Check if game ended
-        GameResult res = engine_->CheckGameResult();
-        if (res != GameResult::kInProgress) {
-            // Announce
-            std::string msg;
-            if (res == GameResult::kWhiteWin) {
-                msg = "White wins!";
-            } else if (res == GameResult::kBlackWin) {
-                msg = "Black wins!";
-            } else {
-                msg = "Draw!";
-            }
-            gui_->DisplayMessage("Game Over: " + msg);
-            break;
-        }
-
-        // Decide whose turn it is
-        checkers::Turn side_to_move = engine_->GetCurrentTurn();
-        bool isHuman                = (side_to_move == human_turn_);
-
-        // Prompt
-        if (isHuman) {
+        f64 elapsed = 0.0;
+        if (is_ai) {
             gui_->DisplayMessage(
-                (side_to_move == checkers::Turn::kWhite ? "White" : "Black") + std::string(" (Human) to move.")
+                std::string("AI ") + (side_to_move == checkers::Turn::kWhite ? "White" : "Black") + " - is thinking..."
             );
+            mcts::Tree tree(
+                engine_->GetBoard(), side_to_move,
+                side_to_move == Turn::kWhite ? game_type_info_.white_backend.value()
+                                             : game_type_info_.black_backend.value()
+            );
+            f64 time_budget =
+                (side_to_move == Turn::kWhite) ? game_type_info_.white_time_limit : game_type_info_.black_time_limit;
+            const auto start  = std::chrono::steady_clock::now();
+            chosen_move       = tree.Run(time_budget - mcts::kRunCallOverhead, kNumThreadsCPU);
+            const auto finish = std::chrono::steady_clock::now();
+            elapsed           = std::chrono::duration<float>(finish - start).count();
 
-            // Time-limited move
-            auto start                = std::chrono::steady_clock::now();
-            std::string notation_move = gui_->PromptForMove();
-            auto finish               = std::chrono::steady_clock::now();
-            float elapsed             = std::chrono::duration<float>(finish - start).count();
+            std::ostringstream oss;
+            oss << tree.GetRunInfo();
+            std::string info_str = oss.str();
 
-            if (elapsed > human_time_limit_) {
-                // Timeout => sideToMove loses
-                gui_->DisplayMessage("Time out! You lose.");
-                if (side_to_move == checkers::Turn::kWhite) {
-                    res = GameResult::kBlackWin;
-                } else {
-                    res = GameResult::kWhiteWin;
-                }
+            gui_->DisplayMessage(info_str);
+
+        } else {
+            const auto start  = std::chrono::steady_clock::now();
+            notation_move     = gui_->PromptForMove();
+            const auto finish = std::chrono::steady_clock::now();
+            elapsed           = std::chrono::duration<float>(finish - start).count();
+        }
+
+        const f64 time_limit = GetSideTimeLimit(side_to_move);
+        if (is_ai) {
+            gui_->DisplayMessage(
+                std::string("AI ") + (side_to_move == Turn::kWhite ? "White" : "Black") + " - took " +
+                std::to_string(elapsed) + " seconds"
+            );
+        }
+        if (elapsed > time_limit + time_error_margin) {
+            gui_->DisplayMessage(
+                "Time out! " + std::string(side_to_move == checkers::Turn::kWhite ? "White" : "Black") + " loses."
+            );
+            res = GetOppositeSideWin(side_to_move);
+            break;
+        }
+
+        if (is_ai) {
+            bool success = engine_->ApplyMove(chosen_move, false);
+            if (!success) {
+                gui_->DisplayMessage(
+                    "Move invalid! " + std::string(side_to_move == checkers::Turn::kWhite ? "White" : "Black") +
+                    " loses."
+                );
+                gui_->DisplayMessage("(Since it's an AI move, this is a bug.)");
+                res = GetOppositeSideWin(side_to_move);
                 break;
             }
-
-            // Try applying move
-            auto [ok, msg, move] = AttemptMoveFromNotation(notation_move);
-            if (!ok) {
+        } else {
+            auto [success, msg, move] = AttemptMoveFromNotation(notation_move);
+            chosen_move               = move;
+            if (!success) {
                 gui_->DisplayMessage("Invalid Move: " + msg);
                 continue;
-            } else {
-                // Move was successful, display board
-                gui_->DisplayBoard(engine_->GetBoard(), move);
             }
-        } else {
-            // AI logic
-            gui_->DisplayMessage("AI is thinking...");
-
-            auto moves = engine_->GenerateMoves();
-            if (engine_->CheckGameResult() != GameResult::kInProgress) {
-                break;
-            }
-
-            // Start MCTS
-            auto start = std::chrono::steady_clock::now();
-            checkers::mcts::MonteCarloTree tree(engine_->GetBoard(), side_to_move);
-            float time_budget = ai_time_limit_;
-            auto end          = std::chrono::steady_clock::now();
-            float elapsed     = std::chrono::duration<float>(end - start).count();
-
-            checkers::move_t best_move = tree.Run(time_budget - mcts::kRunCallOverhead, checkers::kNumThreadsCPU);
-            std::cout << "AI took " << elapsed << " seconds\n";
-            // Apply bestMove
-            bool success = engine_->ApplyMove(best_move, false);
-            if (!success) {
-                // No moves => lose
-                gui_->DisplayMessage("AI move invalid? Forcing loss.");
-                if (side_to_move == checkers::Turn::kWhite) {
-                    res = GameResult::kBlackWin;
-                } else {
-                    res = GameResult::kWhiteWin;
-                }
-                break;
-            }
-            // Log move in notation
-            checkers::board_index_t from_sq =
-                checkers::cpu::move_gen::DecodeMove<checkers::cpu::move_gen::MovePart::From>(best_move);
-            checkers::board_index_t toSq =
-                checkers::cpu::move_gen::DecodeMove<checkers::cpu::move_gen::MovePart::To>(best_move);
-
-            // Convert to e.g. "d2-e3"
-            auto SquareToNotation = [&](checkers::board_index_t sq) {
-                int row       = sq / 4;
-                int colOffset = sq % 4;
-                int col       = (row % 2 == 0) ? (colOffset * 2) : (colOffset * 2 + 1);
-                int rank      = 8 - row;  // row=0 => rank=8
-                char file     = 'a' + col;
-                std::stringstream ss;
-                ss << file << rank;
-                return ss.str();
-            };
-            std::string move_string = SquareToNotation(from_sq) + "-" + SquareToNotation(toSq);
-            move_history_.push_back(move_string);
-
-            gui_->DisplayMessage("AI plays " + move_string);
-            gui_->DisplayBoard(engine_->GetBoard(), best_move);
         }
+        // Log move in notation
+        std::string move_string = GetMoveString(chosen_move);
+
+        move_history_.push_back(move_string);
+
+        if (is_ai) {
+            gui_->DisplayMessage(
+                "AI " + std::string(side_to_move == checkers::Turn::kWhite ? "White" : "Black") + " - plays " +
+                move_string
+            );
+        }
+        gui_->DisplayBoard(engine_->GetBoard(), chosen_move);
     }
 
-    SaveRecord(recordFile);
+    SaveRecord(record_file);
+    return res;
+}
+std::string Game::GetMoveString(move_t move)
+{
+    board_index_t from_sq = cpu::move_gen::DecodeMove<cpu::move_gen::MovePart::From>(move);
+    board_index_t to_sq   = cpu::move_gen::DecodeMove<cpu::move_gen::MovePart::To>(move);
+
+    std::string move_string = SquareToNotation(from_sq) + "-" + SquareToNotation(to_sq);
+    return move_string;
+}
+f64 Game::GetSideTimeLimit(const Turn &side_to_move) const
+{
+    f64 time_limit =
+        (side_to_move == Turn::kWhite) ? game_type_info_.white_time_limit : game_type_info_.black_time_limit;
+    return time_limit;
+}
+bool Game::IsAI(const Turn &side_to_move) const
+{
+    bool is_ai = (side_to_move == Turn::kWhite && game_type_info_.white_player_type == PlayerType::kAi) ||
+                 (side_to_move == Turn::kBlack && game_type_info_.black_player_type == PlayerType::kAi);
+    return is_ai;
+}
+GameResult Game::GetOppositeSideWin(const Turn &side_to_move)
+{
+    GameResult res;
+    if (side_to_move == Turn::kWhite) {
+        res = GameResult::kBlackWin;
+    } else {
+        res = GameResult::kWhiteWin;
+    }
+    return res;
+}
+std::string Game::SquareToNotation(board_index_t sq)
+{
+    int row       = sq / 4;
+    int colOffset = sq % 4;
+    int col       = (row % 2 == 0) ? (colOffset * 2) : (colOffset * 2 + 1);
+    int rank      = 8 - row;  // row=0 => rank=8
+    char file     = 'a' + col;
+    std::stringstream ss;
+    ss << file << rank;
+    return ss.str();
 }
 
-std::tuple<bool, std::string, move_t> CheckersGame::AttemptMoveFromNotation(const std::string &move_line)
+std::tuple<bool, std::string, move_t> Game::AttemptMoveFromNotation(const std::string &move_line)
 {
     char delim = '-';
     if (move_line.find(':') != std::string::npos) {
@@ -308,10 +211,11 @@ std::tuple<bool, std::string, move_t> CheckersGame::AttemptMoveFromNotation(cons
                     std::cout << "White: " << board.white << std::endl;
                     std::cout << "Black: " << board.black << std::endl;
                     std::cout << "Kings: " << board.kings << std::endl;
-                } else if (token == kSaveQuitToken) {
+                    return {false, "Dumped board.", kInvalidMove};
+                } else if (token == kSaveToken) {
                     SaveRecord("game_record.txt");
                     std::cout << "Game record saved to game_record.txt\n";
-                    return {false, "Game saved.", kInvalidMove};
+                    return {false, "Game record saved.", kInvalidMove};
                 } else {
                     fields.push_back(token);
                 }
@@ -345,7 +249,7 @@ std::tuple<bool, std::string, move_t> CheckersGame::AttemptMoveFromNotation(cons
         if (!ApplyMultiCapture(fields)) {
             return {false, "Invalid multi-capture.", kInvalidMove};
         }
-        // If success, store in moveHistory
+        // If success, store in record
         move_history_.push_back(move_line);
         return {true, "", kInvalidMove};
     }
@@ -357,7 +261,6 @@ std::tuple<bool, std::string, move_t> CheckersGame::AttemptMoveFromNotation(cons
         std::string msg = "Invalid square(s): from=" + fields[0] + ", to=" + fields[1];
         return {false, msg, kInvalidMove};
     }
-    std::cout << "From: " << static_cast<u32>(fromIdx) << ", To: " << static_cast<u32>(toIdx) << std::endl;
 
     // Encode
     checkers::move_t mv = (fromIdx) | (toIdx << 8);
@@ -370,7 +273,7 @@ std::tuple<bool, std::string, move_t> CheckersGame::AttemptMoveFromNotation(cons
     return {true, "", mv};
 }
 
-bool CheckersGame::ApplyMultiCapture(const std::vector<std::string> &fields)
+bool Game::ApplyMultiCapture(const std::vector<std::string> &fields)
 {
     // Suppose we have e.g. ["d2", "f4", "d6"]
     // We apply them in sequence. The engine allows partial captures.
@@ -391,7 +294,7 @@ bool CheckersGame::ApplyMultiCapture(const std::vector<std::string> &fields)
     return true;
 }
 
-checkers::board_index_t CheckersGame::NotationToIndex(const std::string &cell) const
+checkers::board_index_t Game::NotationToIndex(const std::string &cell) const
 {
     if (cell.size() < 2)
         return ~0;
@@ -408,23 +311,22 @@ checkers::board_index_t CheckersGame::NotationToIndex(const std::string &cell) c
         return ~0;
 
     // row = 8-rank
-    int row = 8 - rank;
-    // isPlayable => same logic. We'll directly do the col logic:
+    int row          = 8 - rank;
     bool is_playable = ((row % 2 == 0 && file % 2 == 0) || (row % 2 == 1 && file % 2 == 1));
     if (!is_playable)
         return ~0;
 
     int col_offset = (row % 2 == 0) ? (file / 2) : ((file - 1) / 2);
     int idx        = row * 4 + col_offset;
-    if (idx < 0 || idx >= 32)
+    if (idx < 0 || idx >= 32) {
         return ~0;
+    }
     return (checkers::board_index_t)idx;
 }
 
-void CheckersGame::SaveRecord(const std::string &recordFile) const
+void Game::SaveRecord(const std::string &recordFile) const
 {
     if (recordFile.empty()) {
-        // Print to stdout
         std::cout << "\n=== Move History ===\n";
         for (const auto &m : move_history_) {
             std::cout << m << std::endl;
@@ -442,7 +344,7 @@ void CheckersGame::SaveRecord(const std::string &recordFile) const
     ofs.close();
 }
 
-bool CheckersGame::LoadGameRecord(const std::string &inputFile)
+bool Game::LoadGameRecord(const std::string &inputFile)
 {
     std::ifstream ifs(inputFile);
     if (!ifs.is_open()) {

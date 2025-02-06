@@ -4,6 +4,7 @@
 #include <limits>
 #include "common/checkers_defines.hpp"
 #include "cpu/board_helpers.hpp"
+#include "cpu/launchers.hpp"
 #include "cuda/launchers.cuh"
 
 #include <atomic>
@@ -32,30 +33,43 @@ class Timer
 };
 
 // Worker thread function: repeatedly call Iteration() until the stop flag is set.
-void mcts_worker(MonteCarloTree *tree)
+void mcts_worker(Tree *tree)
 {
     while (!tree->stop_flag_.load(std::memory_order_relaxed)) {
         tree->Iteration();
     }
 }
 
-// ------------------- MonteCarloTree Implementation ----------------------
-
-MonteCarloTree::MonteCarloTree(checkers::cpu::Board board, checkers::Turn turn)
+void run_workers_independent_worker(u64 num_threads, Tree *tree)
 {
-    root_ = new MonteCarloTreeNode(board, turn);
+    std::vector<std::thread> workers;
+    for (u64 i = 0; i < num_threads; ++i) {
+        workers.emplace_back(mcts_worker, tree);
+    }
+
+    for (auto &worker : workers) {
+        worker.join();
+    }
 }
 
-MonteCarloTree::~MonteCarloTree() { delete root_; }
+// ------------------- MonteCarloTree Implementation ----------------------
 
-[[maybe_unused]] void MonteCarloTree::DescendTree(const move_t move)
+Tree::Tree(checkers::cpu::Board board, checkers::Turn turn, Backend backend)
+{
+    root_    = new Node(board, turn);
+    backend_ = backend;
+}
+
+Tree::~Tree() { delete root_; }
+
+[[maybe_unused]] void Tree::DescendTree(const move_t move)
 {
     auto it = root_->children_.find(move);
     if (it == root_->children_.end()) {
         assert(false && "Attempting to descend to a non-existent child!");
     }
 
-    MonteCarloTreeNode *child = it->second;
+    Node *child = it->second;
 
     // Remove the chosen child from the parent's map, so we can safely free siblings.
     root_->children_.erase(it);
@@ -74,8 +88,9 @@ MonteCarloTree::~MonteCarloTree() { delete root_; }
     root_          = child;
 }
 
-checkers::move_t MonteCarloTree::Run(f32 time_seconds, size_t num_threads)
+checkers::move_t Tree::Run(f32 time_seconds, size_t num_threads)
 {
+    num_threads = backend_ == Backend::kSingleThreadedCpu ? 1 : num_threads;
     stop_flag_.store(false, std::memory_order_relaxed);
 
     // Start the timer thread.
@@ -90,7 +105,7 @@ checkers::move_t MonteCarloTree::Run(f32 time_seconds, size_t num_threads)
     // Wait for the timer to signal stop.
     timer_thread.join();
 
-    // Join all worker threads.
+    // Wait for the workers to finish after the timer has stopped them.
     for (auto &worker : workers) {
         worker.join();
     }
@@ -99,16 +114,16 @@ checkers::move_t MonteCarloTree::Run(f32 time_seconds, size_t num_threads)
     if (root_->children_.empty()) {
         return kInvalidMove;
     }
-    return SelectBestMove<f32, &MonteCarloTree::WinRate>(root_);
+    return SelectBestMove<f32, &Tree::WinRate>(root_);
 }
 
-void MonteCarloTree::Iteration()
+void Tree::Iteration()
 {
-    MonteCarloTreeNode *node = SelectNode();
+    Node *node = SelectNode();
     if (!node) {
         return;
     }
-    std::vector<MonteCarloTreeNode *> expanded_nodes = ExpandNode(node);
+    std::vector<Node *> expanded_nodes = ExpandNode(node);
     if (expanded_nodes.empty()) {
         return;
     }
@@ -117,19 +132,19 @@ void MonteCarloTree::Iteration()
     BackPropagate(expanded_nodes, results);
 }
 
-MonteCarloTreeNode *MonteCarloTree::SelectNode()
+Node *Tree::SelectNode()
 {
-    MonteCarloTreeNode *current = root_;
+    Node *current = root_;
     while (true) {
         std::unique_lock<std::mutex> lock(current->node_mutex);
         if (current->engine_.IsTerminal() || current->children_.empty()) {
             return current;
         }
 
-        MonteCarloTreeNode *best_child = nullptr;
-        f64 best_score                 = -std::numeric_limits<f64>::infinity();
+        Node *best_child = nullptr;
+        f64 best_score   = -std::numeric_limits<f64>::infinity();
         for (auto &kv : current->children_) {
-            MonteCarloTreeNode *child = kv.second;
+            Node *child = kv.second;
             // Read child statistics to compute UCT.
             f64 uct = child->UctScore();
             if (uct > best_score) {
@@ -144,7 +159,7 @@ MonteCarloTreeNode *MonteCarloTree::SelectNode()
         current = best_child;
     }
 }
-std::vector<MonteCarloTreeNode *> MonteCarloTree::ExpandNode(MonteCarloTreeNode *node)
+std::vector<Node *> Tree::ExpandNode(Node *node)
 {
     std::unique_lock<std::mutex> lock(node->node_mutex);
     if (node->engine_.IsTerminal() || !node->children_.empty()) {
@@ -157,7 +172,7 @@ std::vector<MonteCarloTreeNode *> MonteCarloTree::ExpandNode(MonteCarloTreeNode 
         "ExpandNode called on a node with no moves"
     );
 
-    std::vector<MonteCarloTreeNode *> expanded_nodes;
+    std::vector<Node *> expanded_nodes;
     expanded_nodes.reserve(10);
 
     // TODO: In the rare case of a chain-capture move, we should only expand the last move.
@@ -171,7 +186,7 @@ std::vector<MonteCarloTreeNode *> MonteCarloTree::ExpandNode(MonteCarloTreeNode 
             CheckersEngine child_engine = node->engine_;
             child_engine.ApplyMove(mv, false);
 
-            auto *child         = new MonteCarloTreeNode(child_engine, node);
+            auto *child         = new Node(child_engine, node);
             node->children_[mv] = child;
             expanded_nodes.push_back(child);
         }
@@ -179,16 +194,20 @@ std::vector<MonteCarloTreeNode *> MonteCarloTree::ExpandNode(MonteCarloTreeNode 
     return expanded_nodes;
 }
 
-std::vector<SimulationResult> MonteCarloTree::SimulateNodes(const std::vector<MonteCarloTreeNode *> &nodes)
+std::vector<SimulationResult> Tree::SimulateNodes(const std::vector<Node *> &nodes)
 {
     if (nodes.empty()) {
         return {};
     }
 
-    // Distribute up to kMaxTotalSimulations across children.
-    u64 sim_each = kMaxTotalSimulations / nodes.size();
-    if (sim_each < 1)
-        sim_each = 1;
+    u64 sim_each = 1;
+    if (backend_ == Backend::kGpu) {
+        // Distribute the total number of simulations evenly among the nodes.
+        sim_each = kMaxTotalSimulationsGpu / nodes.size();
+        if (sim_each < 1) {
+            sim_each = 1;
+        }
+    }
 
     std::vector<SimulationParam> params;
     params.reserve(nodes.size());
@@ -205,19 +224,22 @@ std::vector<SimulationResult> MonteCarloTree::SimulateNodes(const std::vector<Mo
         params.push_back(sp);
     }
 
-    auto results = gpu::launchers::HostSimulateCheckersGames(params, kSimulationMaxDepth);
+    std::vector<SimulationResult> results;
+    if (backend_ == Backend::kCpu) {
+        results = cpu::launchers::HostSimulateCheckersGames(params, kSimulationMaxDepth);
+    } else {
+        results = gpu::launchers::HostSimulateCheckersGames(params, kSimulationMaxDepth);
+    }
     return results;
 }
 
-void MonteCarloTree::BackPropagate(
-    std::vector<MonteCarloTreeNode *> nodes, const std::vector<SimulationResult> &results
-)
+void Tree::BackPropagate(std::vector<Node *> nodes, const std::vector<SimulationResult> &results)
 {
     for (size_t i = 0; i < nodes.size(); i++) {
-        MonteCarloTreeNode *leaf    = nodes[i];
-        SimulationResult res        = results[i];
-        f64 score                   = GetScoreFromPerspectiveOfRoot(leaf, res);
-        MonteCarloTreeNode *current = leaf;
+        Node *leaf           = nodes[i];
+        SimulationResult res = results[i];
+        f64 score            = GetScoreFromPerspectiveOfRoot(leaf, res);
+        Node *current        = leaf;
         while (current != nullptr) {
             std::unique_lock<std::mutex> lock(current->node_mutex);
             current->visits_ += res.n_simulations;
@@ -228,7 +250,7 @@ void MonteCarloTree::BackPropagate(
 }
 
 // For final move selection.
-f32 MonteCarloTree::WinRate(const MonteCarloTreeNode *node)
+f32 Tree::WinRate(const Node *node)
 {
     if (node->visits_ == 0) {
         return 0.0f;
@@ -236,7 +258,7 @@ f32 MonteCarloTree::WinRate(const MonteCarloTreeNode *node)
     return static_cast<f32>(node->score_ / node->visits_);
 }
 
-f64 MonteCarloTree::GetScoreFromPerspectiveOfRoot(const MonteCarloTreeNode *node, const SimulationResult &result)
+f64 Tree::GetScoreFromPerspectiveOfRoot(const Node *node, const SimulationResult &result)
 {
     const Turn root_turn = root_->engine_.GetCurrentTurn();
     const Turn node_turn = node->engine_.GetCurrentTurn();
@@ -248,7 +270,7 @@ f64 MonteCarloTree::GetScoreFromPerspectiveOfRoot(const MonteCarloTreeNode *node
     }
 }
 
-u64 MonteCarloTree::GetTotalSimulations() const
+u64 Tree::GetTotalSimulations() const
 {
     if (!root_) {
         return 0;
@@ -256,28 +278,23 @@ u64 MonteCarloTree::GetTotalSimulations() const
     return root_->visits_;
 }
 
-MonteCarloRunInfo MonteCarloTree::GetRunInfo() const
+TreeRunInfo Tree::GetRunInfo() const
 {
-    MonteCarloRunInfo info;
+    TreeRunInfo info;
     info.total_simulations  = GetTotalSimulations();
     info.predicted_win_rate = WinRate(root_);
-    info.best_move          = SelectBestMove<f32, &MonteCarloTree::WinRate>(root_);
+    info.best_move          = SelectBestMove<f32, &Tree::WinRate>(root_);
+    info.used_backend       = backend_;
     return info;
 }
 
 // ------------------- MonteCarloTreeNode Implementation ----------------------
 
-MonteCarloTreeNode::MonteCarloTreeNode(const cpu::Board &board, Turn turn)
-    : engine_(board, turn), parent_(nullptr), visits_(0), score_(0.0)
-{
-}
+Node::Node(const cpu::Board &board, Turn turn) : engine_(board, turn), parent_(nullptr), visits_(0), score_(0.0) {}
 
-MonteCarloTreeNode::MonteCarloTreeNode(const CheckersEngine &engine, MonteCarloTreeNode *parent)
-    : engine_(engine), parent_(parent), visits_(0), score_(0.0)
-{
-}
+Node::Node(const CheckersEngine &engine, Node *parent) : engine_(engine), parent_(parent), visits_(0), score_(0.0) {}
 
-MonteCarloTreeNode::~MonteCarloTreeNode()
+Node::~Node()
 {
     for (auto &kv : children_) {
         delete kv.second;
@@ -285,7 +302,7 @@ MonteCarloTreeNode::~MonteCarloTreeNode()
     children_.clear();
 }
 
-f64 MonteCarloTreeNode::UctScore() const
+f64 Node::UctScore() const
 {
     static constexpr f64 kEpsilon = 1e-9;
     if (visits_ == 0) {

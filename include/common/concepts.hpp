@@ -1,7 +1,7 @@
 #ifndef MCTS_CHECKERS_INCLUDE_COMMON_CONCEPTS_HPP_
 #define MCTS_CHECKERS_INCLUDE_COMMON_CONCEPTS_HPP_
 
-#include "concepts"
+#include <concepts>
 
 template <typename T>
 concept MaxComparable = requires(T a, T b) {
@@ -10,10 +10,10 @@ concept MaxComparable = requires(T a, T b) {
 
 namespace checkers::mcts
 {
-class MonteCarloTreeNode;
+class Node;
 template <typename Func, typename EvalType>
-concept EvalFunction = std::invocable<Func, MonteCarloTreeNode *> &&
-                       std::convertible_to<std::invoke_result_t<Func, MonteCarloTreeNode *>, EvalType>;
+concept EvalFunction =
+    std::invocable<Func, Node *> && std::convertible_to<std::invoke_result_t<Func, Node *>, EvalType>;
 }  // namespace checkers::mcts
 
 #endif

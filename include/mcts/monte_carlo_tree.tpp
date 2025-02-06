@@ -6,11 +6,14 @@
 
 namespace checkers::mcts
 {
+#ifdef __cpp_concepts
 template <MaxComparable EvalType, EvalFunction<EvalType> auto EvalFunc>
-move_t MonteCarloTree::SelectBestMove(const MonteCarloTreeNode *node) const
+#else
+template <typename EvalType, auto Func>
+#endif
+move_t Tree::SelectBestMove(const Node *node) const
 {
     assert(node != nullptr);
-    std::cout << "Total simulations: " << node->visits_ << std::endl;
 
     if (node->children_.empty()) {
         // Handle the case where there are no children.
@@ -32,7 +35,6 @@ move_t MonteCarloTree::SelectBestMove(const MonteCarloTreeNode *node) const
     }
 
     assert(best_move != kInvalidMove);
-    std::cout << "Best score: " << best_score << std::endl;
     return best_move;
 }
 }  // namespace checkers::mcts

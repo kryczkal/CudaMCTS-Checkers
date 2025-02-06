@@ -1,8 +1,11 @@
 #ifndef MCTS_CHECKERS_INCLUDE_GAME_CHECKERS_ENGINE_HPP_
 #define MCTS_CHECKERS_INCLUDE_GAME_CHECKERS_ENGINE_HPP_
 
+#include <optional>
+
 #include "common/checkers_defines.hpp"
 #include "cpu/board.hpp"
+#include "cpu/move_generation.hpp"
 
 namespace checkers
 {
@@ -11,6 +14,13 @@ namespace checkers
  * @brief Represents the outcome of a game from the engine's perspective.
  */
 enum class GameResult { kInProgress = 0, kWhiteWin, kBlackWin, kDraw };
+
+struct MultiCaptureNextMovesInfo {
+    board_index_t sq = 0;
+    move_t moves[kNumMaxMovesPerPiece];
+    u8 count                        = 0;
+    move_flags_t local_capture_mask = 0;
+};
 
 /**
  * @brief The CheckersEngine manages a single board position and the current turn,
@@ -76,6 +86,7 @@ class CheckersEngine
     checkers::cpu::Board board_;
     checkers::Turn current_turn_;
     GameResult game_result_ = GameResult::kInProgress;
+    std::optional<MultiCaptureNextMovesInfo> multi_capture_;
 
     /**
      * @brief Keeps track of non-reversible moves for the 40-move draw rule.
@@ -101,9 +112,9 @@ class CheckersEngine
      *        that didn't capture, we increment the counter.
      *
      * @param was_capture True if the last jump was capturing.
-     * @param from_sq The 'from' part of the move to see if it was a king piece.
+     * @param mv The last move that was applied.
      */
-    void UpdateNonReversibleCount(bool was_capture, checkers::board_index_t from_sq);
+    void UpdateNonReversibleCount(bool was_capture, move_t mv);
 };
 
 }  // namespace checkers

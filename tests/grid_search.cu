@@ -17,7 +17,7 @@ TEST(ManualTest, SimulationSpeed)
         u64 total_simulation_count = 0;
         for (u64 i = 0; i < kTestCount; ++i) {
             board.CreateStandard();
-            checkers::mcts::MonteCarloTree mcts(board, checkers::Turn::kWhite);
+            checkers::mcts::Tree mcts(board, checkers::Turn::kWhite);
             mcts.Run(kSimulationTimeSeconds, checkers::kNumThreadsCPU);
             total_simulation_count += mcts.GetTotalSimulations();
         }

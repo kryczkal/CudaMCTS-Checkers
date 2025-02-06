@@ -122,7 +122,7 @@ std::vector<SimulationResult> HostSimulateCheckersGames(const std::vector<Simula
 
     std::vector<u8> seeds(total_sims);
     {
-        std::mt19937 rng(kTrueRandom ? std::random_device{}() : kSeed);
+        std::mt19937 rng(kTrueRandom ? std::chrono::system_clock::now().time_since_epoch().count() : kSeed);
         for (u64 i = 0; i < total_sims; i++) {
             seeds[i] = static_cast<u8>(rng() & 0xFF);
         }
@@ -261,15 +261,14 @@ std::vector<SimulationResult> HostSimulateCheckersGames(const std::vector<Simula
                     apply_move::ApplyMoveOnSingleBoard(chain_move, white_board, black_board, king_board);
                 }
 
-                board_index_t from_sq = move_gen::DecodeMove<move_gen::MovePart::From>(chosen_move);
-                bool from_was_king    = ReadFlag(king_board, from_sq);
+                bool to_is_king = ReadFlag(king_board, to_sq);
 
                 // Promotion
                 king_board |= (white_board & BoardConstants::kTopBoardEdgeMask);
                 king_board |= (black_board & BoardConstants::kBottomBoardEdgeMask);
 
                 // 40-move rule
-                if (!was_capture && from_was_king) {
+                if (!was_capture && to_is_king) {
                     non_reversible_count++;
                 } else {
                     non_reversible_count = 0;
@@ -288,11 +287,7 @@ std::vector<SimulationResult> HostSimulateCheckersGames(const std::vector<Simula
                 outcome = kOutcomeDraw;  // draw
             }
 
-            // Convert outcome from {1=White,2=Black,3=Draw} to perspective of 'startBlack'
-            // We store finalScores[simIndex] in {0=loss,1=draw,2=win}
-            // If 'startBlack == false' => White started, so outcome=1 => "win" for the starter => storeVal=2
-            // If outcome=3 => draw => storeVal=1
-            // If outcome=the other side => storeVal=0
+            // Convert outcome from {1=White,2=Black,3=Draw} to perspective of the starting side
             u8 store_val = 0;  // lose
             if (outcome == kOutcomeDraw) {
                 store_val = 1;  // draw

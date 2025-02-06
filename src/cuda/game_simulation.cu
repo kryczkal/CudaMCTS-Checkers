@@ -291,10 +291,10 @@ __global__ void SimulateCheckersGames(
             const bool was_capture =
                 checkers::gpu::ReadFlag(s_per_board_flags[kLocalBoardIndex], MoveFlagsConstants::kCaptureFound);
 
-            board_index_t from_sq    = move_gen::DecodeMove<move_gen::MovePart::From>(s_chosen_move[kLocalBoardIndex]);
-            const bool from_was_king = ReadFlag(s_kings[kLocalBoardIndex], from_sq);
+            board_index_t to_sq   = move_gen::DecodeMove<move_gen::MovePart::To>(s_chosen_move[kLocalBoardIndex]);
+            const bool to_is_king = ReadFlag(s_kings[kLocalBoardIndex], to_sq);
 
-            if (!was_capture && from_was_king) {
+            if (!was_capture && to_is_king) {
                 s_non_reversible[kLocalBoardIndex]++;
             } else {
                 s_non_reversible[kLocalBoardIndex] = 0;

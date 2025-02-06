@@ -57,11 +57,11 @@ std::vector<move_t> HostSelectBestMoves(
 );
 
 /**
- * @brief Updated function that:
+ * @brief Host function to simulate multiple checkers games on the GPU.
  *   - Accepts a vector of SimulationParam.
  *   - Allocates GPU memory for the board definitions, calls the kernel that
  *     simulates all the games in one go, storing partial results in d_scores.
- *   - For each batch, calls an optimized GPU reduction kernel to sum up
+ *   - For each batch, calls a GPU reduction kernel to sum up
  *     the outcomes in d_scores for that batch.
  *   - Returns a vector of SimulationResult, containing final .score
  *     (sum/2.0) and the number of simulations for that batch.

@@ -5,6 +5,7 @@
 #define CHECKERS_GAME_HPP
 
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 #include "cpu/board.hpp"
@@ -22,55 +23,52 @@ namespace checkers
 class ICheckersGui
 {
     public:
-    virtual ~ICheckersGui() {}
+    virtual ~ICheckersGui()                                                                   = default;
     virtual void DisplayBoard(const checkers::cpu::Board& board, const checkers::move_t move) = 0;
     virtual void DisplayMessage(const std::string& msg)                                       = 0;
     virtual std::string PromptForMove()                                                       = 0;
+};
+
+enum class PlayerType { kHuman, kAi };
+
+struct GameTypeInfo {
+    checkers::Turn start_side    = checkers::Turn::kWhite;
+    PlayerType white_player_type = PlayerType::kHuman;
+    PlayerType black_player_type = PlayerType::kAi;
+    f64 white_time_limit         = 60.0;
+    f64 black_time_limit         = 60.0;
+    std::optional<mcts::Backend> white_backend;
+    std::optional<mcts::Backend> black_backend;
+    std::shared_ptr<ICheckersGui> gui = nullptr;
 };
 
 /**
  * @brief The CheckersGame manages an interactive game flow,
  *        orchestrating the CheckersEngine and (optionally) a GUI or CLI for user input.
  */
-class CheckersGame
+class Game
 {
     public:
     /**
      * @brief Constructor: sets up a new game from a certain board with an engine and a "human turn" side.
      */
-    CheckersGame(const checkers::cpu::Board& initialBoard, checkers::Turn startTurn, checkers::Turn humanTurn);
-
-    /**
-     * @brief Sets how many seconds the human has to input a move.
-     */
-    void SetHumanTimeLimit(float seconds);
-
-    /**
-     * @brief Sets how many seconds the AI is allowed to think per move.
-     */
-    void SetAiTimeLimit(float seconds);
-
-    /**
-     * @brief Sets the GUI/CLI instance for user interaction.
-     */
-    void SetGui(std::shared_ptr<ICheckersGui> gui);
+    Game(const checkers::cpu::Board& initial_board, const GameTypeInfo& game_type_info);
 
     /**
      * @brief Runs the game loop until completion, optionally saving the move record to a file.
      */
-    void Play(const std::string& recordFile = "");
-
-    /**
-     * @brief Runs the game loop until completion using two Ai's against each other, optionally saving the move record
-     * to a file.
-     */
-    void PlayAiAi(const std::string& recordFile = "");
+    GameResult Play(const std::string& record_file = "");
 
     /**
      * @brief Loads a move record from a text file with lines like: "d2-e3" or "d2:f4:d6".
      *        Applies them one by one to the engine state.
      */
     bool LoadGameRecord(const std::string& inputFile);
+
+    /**
+     * @brief Converts a move_t to a human-readable string like "d2-e3".
+     */
+    static std::string GetMoveString(move_t move);
 
     private:
     /**
@@ -87,7 +85,7 @@ class CheckersGame
     /**
      * @brief Converts notation like 'd2' or 'f4' to a 0..31 index, matching your 32-square layout.
      */
-    checkers::board_index_t NotationToIndex(const std::string& cell) const;
+    [[nodiscard]] checkers::board_index_t NotationToIndex(const std::string& cell) const;
 
     /**
      * @brief Saves the entire move history to a text file or prints to stdout if empty file string.
@@ -95,14 +93,17 @@ class CheckersGame
     void SaveRecord(const std::string& recordFile) const;
 
     private:
+    GameTypeInfo game_type_info_;
+
     std::unique_ptr<checkers::CheckersEngine> engine_;
-    checkers::Turn human_turn_;
-    float human_time_limit_{60.0f};
-    float ai_time_limit_{3.0f};
     std::shared_ptr<ICheckersGui> gui_;
 
     // For storing all moves in notation form.
     std::vector<std::string> move_history_;
+    static std::basic_string<char, std::char_traits<char>, std::allocator<char>> SquareToNotation(board_index_t sq);
+    static GameResult GetOppositeSideWin(const Turn& side_to_move);
+    [[nodiscard]] bool IsAI(const Turn& side_to_move) const;
+    [[nodiscard]] f64 GetSideTimeLimit(const Turn& side_to_move) const;
 };
 
 }  // namespace checkers
