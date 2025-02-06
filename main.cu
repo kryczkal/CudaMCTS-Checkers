@@ -81,6 +81,7 @@ checkers::GameTypeInfo QueryGameTypeInfo()
     checkers::GameTypeInfo game_type_info;
     QueryInfoForOnePlayer(game_type_info, checkers::Turn::kBlack);
     QueryInfoForOnePlayer(game_type_info, checkers::Turn::kWhite);
+    game_type_info.gui = std::make_shared<checkers::CliGui>();
     return game_type_info;
 }
 
