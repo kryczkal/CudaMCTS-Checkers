@@ -305,6 +305,7 @@ std::vector<move_t> HostSelectBestMoves(
     const size_t kTotalSquares       = BoardConstants::kBoardSize;
     const size_t kMovesPerPiece      = kNumMaxMovesPerPiece;
     const size_t kTotalMovesPerBoard = kTotalSquares * kMovesPerPiece;
+    UNUSED(kTotalMovesPerBoard);
     assert(moves.size() == n_boards * kTotalMovesPerBoard);
 
     //--------------------------------------------------------------------------

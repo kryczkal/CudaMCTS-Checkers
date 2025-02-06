@@ -12,7 +12,7 @@ namespace checkers
 
 static constexpr bool kRunCpuVsGpuTest = false;
 
-class DummyGui : public checkers::ICheckersGui
+class [[maybe_unused]] DummyGui : public checkers::ICheckersGui
 {
     public:
     void DisplayBoard(const checkers::cpu::Board& board, const checkers::move_t move) override {}
@@ -31,9 +31,8 @@ static Game SetupGame()
     game_type_info.white_backend     = checkers::mcts::Backend::kGpu;
     game_type_info.start_side        = checkers::Turn::kWhite;
     game_type_info.gui               = std::make_shared<checkers::CliGui>();
-    // game_type_info.gui               = std::make_shared<checkers::DummyGui>();
-    game_type_info.black_time_limit = 0.5f;
-    game_type_info.white_time_limit = 0.5f;
+    game_type_info.black_time_limit  = 0.5f;
+    game_type_info.white_time_limit  = 0.5f;
 
     checkers::Game game(board, game_type_info);
     return game;

@@ -7,13 +7,6 @@
 #include "cpu/launchers.hpp"
 #include "cuda/launchers.cuh"
 
-/**
- * We unify CPU vs GPU "GenerateMoves" tests via typed tests.
- * We'll define a small helper to check expected moves,
- * plus a typed test fixture that calls HostGenerateMoves
- * for CPU or GPU.
- */
-
 namespace
 {
 
@@ -87,31 +80,31 @@ bool GlobalMoveFound(const checkers::MoveGenResult &result)
  *        with correct capture bits. Outputs detailed error messages to std::cerr if discrepancies are found.
  *
  * @param r           The MoveGenResult containing generated moves and flags.
- * @param expectedMoves An unordered_map where keys are expected move_t and values indicate if the move is a capture.
- * @param squareIndex The index of the square to verify moves for.
+ * @param expected_moves An unordered_map where keys are expected move_t and values indicate if the move is a capture.
+ * @param square_index The index of the square to verify moves for.
  * @return True if all expected moves are found with correct capture flags, False otherwise.
  */
 bool FoundAllExpectedMoves(
-    const checkers::MoveGenResult &r, const std::unordered_map<checkers::move_t, bool> &expectedMoves,
-    size_t squareIndex
+    const checkers::MoveGenResult &r, const std::unordered_map<checkers::move_t, bool> &expected_moves,
+    size_t square_index
 )
 {
-    const size_t offset         = squareIndex * checkers::MoveGenResult::kMovesPerPiece;
-    const uint8_t actual_count  = r.h_move_counts[squareIndex];
-    const size_t expected_count = expectedMoves.size();
+    const size_t offset         = square_index * checkers::MoveGenResult::kMovesPerPiece;
+    const uint8_t actual_count  = r.h_move_counts[square_index];
+    const size_t expected_count = expected_moves.size();
 
     // Create a copy of expected moves to track which ones have been found
-    std::unordered_map<checkers::move_t, bool> expectedCopy = expectedMoves;
+    std::unordered_map<checkers::move_t, bool> expected_copy = expected_moves;
 
     // Iterate through each generated move and verify it against expected moves
     for (uint8_t i = 0; i < actual_count; ++i) {
         checkers::move_t mv = r.h_moves[offset + i];
-        auto it             = expectedCopy.find(mv);
+        auto it             = expected_copy.find(mv);
 
         // Check if the move is expected
-        if (it == expectedCopy.end()) {
+        if (it == expected_copy.end()) {
             std::cout
-                << "Unexpected move found for square " << squareIndex << ": "
+                << "Unexpected move found for square " << square_index << ": "
                 << "from "
                 << static_cast<u32>(checkers::cpu::move_gen::DecodeMove<checkers::cpu::move_gen::MovePart::From>(mv))
                 << " to "
@@ -120,24 +113,24 @@ bool FoundAllExpectedMoves(
             return false;
         }
 
-        bool wasCapture = ((r.h_capture_masks[squareIndex] >> i) & 1) == 1;
+        bool was_capture = ((r.h_capture_masks[square_index] >> i) & 1) == 1;
 
         // Check if the capture flag matches the expectation
-        if (wasCapture != it->second) {
-            std::cout << "Capture flag mismatch for move " << mv << " on square " << squareIndex << ": "
+        if (was_capture != it->second) {
+            std::cout << "Capture flag mismatch for move " << mv << " on square " << square_index << ": "
                       << "expected " << (it->second ? "capture" : "non-capture") << ", but found "
-                      << (wasCapture ? "capture" : "non-capture") << ".\n";
+                      << (was_capture ? "capture" : "non-capture") << ".\n";
             return false;
         }
 
         // Remove the move from expectedCopy to track found moves
-        expectedCopy.erase(it);
+        expected_copy.erase(it);
     }
 
     // After processing all generated moves, check if any expected moves were not found
-    if (!expectedCopy.empty()) {
-        std::cout << "Missing expected moves for square " << squareIndex << ":\n";
-        for (const auto &pair : expectedCopy) {
+    if (!expected_copy.empty()) {
+        std::cout << "Missing expected moves for square " << square_index << ":\n";
+        for (const auto &pair : expected_copy) {
             checkers::move_t mv = pair.first;
             bool isCapture      = pair.second;
             std::cout
@@ -297,13 +290,9 @@ TYPED_TEST(MoveGenerationTest, KingPieceMoveWithCapture)
     const auto &r = results[0];
 
     std::unordered_map<checkers::move_t, bool> expected;
-    // normal diagonal: 12->8 = not capture
     expected.emplace(checkers::cpu::move_gen::EncodeMove(12, 8), false);
-    // The next squares 12->5,12->2 might be captures if there's a piece at 9
-    // Indeed it sets capture bits
     expected.emplace(checkers::cpu::move_gen::EncodeMove(12, 5), true);
     expected.emplace(checkers::cpu::move_gen::EncodeMove(12, 2), true);
-    // continuing in other directions is normal moves
     expected.emplace(checkers::cpu::move_gen::EncodeMove(12, 16), false);
     expected.emplace(checkers::cpu::move_gen::EncodeMove(12, 17), false);
     expected.emplace(checkers::cpu::move_gen::EncodeMove(12, 21), false);

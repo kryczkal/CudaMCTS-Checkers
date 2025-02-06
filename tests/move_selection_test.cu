@@ -184,7 +184,7 @@ TYPED_TEST(MoveSelectionTest, SingleBoardMultipleMoves)
     ASSERT_EQ(best.size(), 1u);
     bests.push_back(best[0]);
 
-    // We expect random different moves for consecutive seeds
+    // We expect random different moves for consecutive seeds for this specific case
     EXPECT_NE(bests[0], bests[1]);
     EXPECT_NE(bests[1], bests[2]);
     EXPECT_NE(bests[0], bests[2]);

@@ -8,7 +8,9 @@
 namespace checkers
 {
 
-static Game SetupGame(std::string game_file)
+static constexpr bool kRunGameHistoriesTest = false;
+
+[[maybe_unused]] static Game SetupGame(std::string game_file)
 {
     cpu::Board board;
     board.CreateStandard();
@@ -32,8 +34,10 @@ static Game SetupGame(std::string game_file)
  */
 TEST(GameHistoriesTest, TestGame1)
 {
-    //    auto game = SetupGame("game_histories/test_game_13.txt");
-
-    //    game.Play();
+    if constexpr (!kRunGameHistoriesTest) {
+        return;
+    }
+    auto game = SetupGame("game_histories/test_game_13.txt");
+    game.Play();
 }
 }  // namespace checkers

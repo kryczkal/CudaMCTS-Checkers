@@ -9,7 +9,6 @@ checkers::mcts::Backend QueryBackend()
     u32 backend_num;
     std::cin >> backend_num;
 
-    checkers::mcts::Backend backend;
     switch (backend_num) {
         case 0:
             return checkers::mcts::Backend::kCpu;
@@ -20,6 +19,7 @@ checkers::mcts::Backend QueryBackend()
         default:
             return checkers::mcts::Backend::kCpu;
     }
+    return checkers::mcts::Backend::kCpu;
 }
 
 checkers::PlayerType QueryPlayerType()
@@ -28,7 +28,6 @@ checkers::PlayerType QueryPlayerType()
     u32 player_num;
     std::cin >> player_num;
 
-    checkers::PlayerType player_type;
     switch (player_num) {
         case 0:
             return checkers::PlayerType::kHuman;
@@ -37,6 +36,7 @@ checkers::PlayerType QueryPlayerType()
         default:
             return checkers::PlayerType::kHuman;
     }
+    return checkers::PlayerType::kHuman;
 }
 
 f64 QueryTimeLimit()
@@ -73,6 +73,7 @@ checkers::GameTypeInfo& QueryInfoForOnePlayer(checkers::GameTypeInfo& game_type_
         }
         game_type_info.white_time_limit = QueryTimeLimit();
     }
+    return game_type_info;
 }
 
 checkers::GameTypeInfo QueryGameTypeInfo()

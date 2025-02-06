@@ -1,13 +1,9 @@
 #include <gtest/gtest.h>
-#include <algorithm>
-#include <cassert>
-#include <cmath>
 #include <iostream>
 #include <vector>
 
 #include "common/checkers_defines.hpp"
 #include "cpu/launchers.hpp"
-#include "cuda/game_simulation.cuh"
 #include "cuda/launchers.cuh"
 
 namespace
@@ -136,10 +132,6 @@ class SimulationTest : public ::testing::Test
 {
     protected:
     std::vector<checkers::SimulationParam> params;
-
-    // We'll populate "params" in different tests manually,
-    // or right in the tests as needed. This fixture
-    // simply provides an optional container.
 };
 
 using SimulationImplementations = ::testing::Types<CPUSimImpl, GPUSimImpl>;
@@ -154,7 +146,6 @@ TYPED_TEST(SimulationTest, ImmediateWinWhite)
     // White king at 5, black piece at 9 => immediate capture
     using ImplType = TypeParam;
 
-    checkers::gpu::launchers::GpuBoard dummy;  // Not used, but ensures compile
     // Build the param
     checkers::SimulationParam param{};
     param.white = 0;
@@ -162,8 +153,6 @@ TYPED_TEST(SimulationTest, ImmediateWinWhite)
     param.king  = 0;
 
     // We place white king at 5, black piece at 9
-    // The function SetPiece is from TypeParam's BoardType,
-    // but SimulationParam is direct bitmasks. We'll do it directly:
     param.white |= (1u << 5);
     param.king |= (1u << 5);
     param.black |= (1u << 9);
@@ -341,10 +330,6 @@ TYPED_TEST(SimulationTest, DecreasingPieceCountIncreasesWinRatio)
 
     auto MakeParam = [&](int white_count, int black_count) {
         checkers::SimulationParam p{};
-        // Place "whiteCount" pieces for White in the top half of the 8 indexes [24..31]
-        // Place "blackCount" pieces for Black in the bottom half of the 8 indexes [0..7]
-        // We use simple loops to set bits for the correct number of squares.
-
         // White squares [24..31]
         for (checkers::board_index_t idx = 24; idx < 24 + white_count; ++idx) {
             p.white |= (1u << idx);
@@ -355,8 +340,7 @@ TYPED_TEST(SimulationTest, DecreasingPieceCountIncreasesWinRatio)
         }
 
         // White to move
-        p.start_turn = 0;
-        // Use a larger simulation count for stability
+        p.start_turn    = 0;
         p.n_simulations = 1000;
         return p;
     };
@@ -370,7 +354,6 @@ TYPED_TEST(SimulationTest, DecreasingPieceCountIncreasesWinRatio)
     params.push_back(MakeParam(8, 3));
     params.push_back(MakeParam(8, 2));
 
-    // We'll allow a moderate iteration limit so the game can progress.
     int max_iterations = 200;
     auto results       = ImplType::SimulateCheckersGames(params, max_iterations);
     ASSERT_EQ(results.size(), 7u);

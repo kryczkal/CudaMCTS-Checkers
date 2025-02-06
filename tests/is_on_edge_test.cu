@@ -1,6 +1,5 @@
 #include <gtest/gtest.h>
 #include <algorithm>
-#include <unordered_map>
 #include <vector>
 
 #include "common/checkers_defines.hpp"
@@ -27,7 +26,7 @@ namespace
  * @param d_results Device array to store results.
  * @param n         Number of elements.
  */
-__global__ static void IsOnEdgeKernel(const checkers::board_index_t* d_indices, char* d_results, size_t n)
+__global__ void IsOnEdgeKernel(const checkers::board_index_t* d_indices, char* d_results, size_t n)
 {
     size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
     if (idx < n) {
@@ -47,19 +46,9 @@ struct CPUISEdgeTestImpl {
      * @param index The board index to check.
      * @return True if the index is on the edge, False otherwise.
      */
-    static bool IsOnEdge(checkers::board_index_t index) { return checkers::cpu::move_gen::IsOnEdge(index) != 0; }
-
-    /**
-     * @brief Creates a dummy board (not used in this test).
-     */
-    static BoardType MakeBoard() { return BoardType{}; }
-
-    /**
-     * @brief Sets a piece on the board (not used in this test).
-     */
-    static void SetPiece(BoardType& board, checkers::board_index_t idx, char pieceType)
+    [[maybe_unused]] static bool IsOnEdge(checkers::board_index_t index)
     {
-        board.SetPieceAt(idx, pieceType);
+        return checkers::cpu::move_gen::IsOnEdge(index) != 0;
     }
 };
 
@@ -75,7 +64,9 @@ struct GPUISEdgeTestImpl {
      * @param indices Host array of board indices to check.
      * @param results Host array to store the results.
      */
-    static void CheckIsOnEdgeGPU(const std::vector<checkers::board_index_t>& indices, std::vector<char>& results)
+    [[maybe_unused]] static void CheckIsOnEdgeGPU(
+        const std::vector<checkers::board_index_t>& indices, std::vector<char>& results
+    )
     {
         size_t n = indices.size();
         checkers::board_index_t* d_indices;
@@ -105,25 +96,12 @@ struct GPUISEdgeTestImpl {
         cudaFree(d_indices);
         cudaFree(d_results);
     }
-
-    /**
-     * @brief Creates a dummy board (not used in this test).
-     */
-    static BoardType MakeBoard() { return BoardType{}; }
-
-    /**
-     * @brief Sets a piece on the board (not used in this test).
-     */
-    static void SetPiece(BoardType& board, checkers::board_index_t idx, char pieceType)
-    {
-        board.SetPieceAt(idx, pieceType);
-    }
 };
 
 /**
  * @brief Helper function to convert index to string for better error messages.
  */
-std::string IndexToString(checkers::board_index_t index)
+[[maybe_unused]] std::string IndexToString(checkers::board_index_t index)
 {
     // Assuming standard 8x4 board (32 squares)
     // Convert index to algebraic notation (a1 to h8)
