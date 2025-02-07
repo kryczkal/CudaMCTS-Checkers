@@ -17,7 +17,7 @@ namespace
 {
 static constexpr std::string kDumpBoardToken = "dump_board";
 static constexpr std::string kSaveToken      = "save_quit";
-static constexpr f64 time_error_margin       = 1e-1;
+static constexpr f64 time_error_margin       = 9e-1;
 }  // namespace
 
 Game::Game(const checkers::cpu::Board &initial_board, const GameTypeInfo &game_type_info)

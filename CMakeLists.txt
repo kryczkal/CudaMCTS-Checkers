@@ -51,9 +51,3 @@ target_link_libraries(${PROJECT_NAME} PRIVATE ${PROJECT_LIB_NAME})
 
 ################################ Google Tests ################################
 add_subdirectory(tests)
-
-################################# TBB Library #################################
-message("Depending on the machine, std::execution may require to link against intel TBB library")
-message("In case of errors related to linking with TBB, download the TBB library and uncomment the appropiate lines in CMakeLists.txt")
-# find_package(TBB REQUIRED)
-# target_link_libraries(${PROJECT_LIB_NAME} PUBLIC TBB::tbb)

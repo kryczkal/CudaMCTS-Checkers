@@ -272,41 +272,58 @@ void GenerateMoves(
     move_flags_t *d_move_capture_mask, move_flags_t *d_per_board_move_flags, const u64 n_boards
 )
 {
-    // Create a container with board indices [0, n_boards)
-    std::vector<u64> board_indices(n_boards);
-    std::iota(board_indices.begin(), board_indices.end(), 0);
+    const unsigned int num_threads = std::thread::hardware_concurrency();
+    // Divide the boards evenly among threads (using ceiling division).
+    const u64 boards_per_thread = (n_boards + num_threads - 1) / num_threads;
+    std::vector<std::thread> threads;
 
-    // Use parallel execution to process each board concurrently.
-    std::for_each(std::execution::par, board_indices.begin(), board_indices.end(), [=](u64 board_idx) {
-        // Retrieve the piece bitmasks for this board.
-        board_t white_pieces = d_whites[board_idx];
-        board_t black_pieces = d_blacks[board_idx];
-        board_t kings        = d_kings[board_idx];
-
-        // Process each piece on the board sequentially.
-        for (u64 figure_idx_int = 0; figure_idx_int < BoardConstants::kBoardSize; figure_idx_int++) {
-            const board_index_t figure_idx = static_cast<board_index_t>(figure_idx_int);
-
-            // Calculate the base index for the moves of the current piece.
-            const u64 base_moves_idx =
-                (board_idx * BoardConstants::kBoardSize + figure_idx) * static_cast<u64>(kNumMaxMovesPerPiece);
-
-            move_t *out_moves_ptr          = &d_moves[base_moves_idx];
-            u8 *out_move_count_ptr         = &d_move_counts[board_idx * BoardConstants::kBoardSize + figure_idx];
-            move_flags_t *out_capture_mask = &d_move_capture_mask[board_idx * BoardConstants::kBoardSize + figure_idx];
-            move_flags_t &per_board_flags  = d_per_board_move_flags[board_idx];
-
-            // Clear the outputs for this piece.
-            *out_move_count_ptr = 0;
-            *out_capture_mask   = 0;
-
-            // Generate moves for this single piece.
-            GenerateMovesForSinglePiece<turn>(
-                figure_idx, white_pieces, black_pieces, kings, out_moves_ptr, *out_move_count_ptr, *out_capture_mask,
-                per_board_flags
-            );
+    // Launch threads to process subranges of board indices.
+    for (unsigned int t = 0; t < num_threads; ++t) {
+        u64 start_idx = t * boards_per_thread;
+        u64 end_idx   = std::min(n_boards, start_idx + boards_per_thread);
+        if (start_idx >= n_boards) {
+            break;  // In case there are more threads than boards.
         }
-    });
+
+        threads.emplace_back([=]() {
+            for (u64 board_idx = start_idx; board_idx < end_idx; ++board_idx) {
+                // Retrieve the piece bitmasks for this board.
+                board_t white_pieces = d_whites[board_idx];
+                board_t black_pieces = d_blacks[board_idx];
+                board_t kings        = d_kings[board_idx];
+
+                // Process each piece on the board sequentially.
+                for (u64 figure_idx_int = 0; figure_idx_int < BoardConstants::kBoardSize; ++figure_idx_int) {
+                    const board_index_t figure_idx = static_cast<board_index_t>(figure_idx_int);
+
+                    // Calculate the base index for the moves of the current piece.
+                    const u64 base_moves_idx =
+                        (board_idx * BoardConstants::kBoardSize + figure_idx) * static_cast<u64>(kNumMaxMovesPerPiece);
+
+                    move_t *out_moves_ptr  = &d_moves[base_moves_idx];
+                    u8 *out_move_count_ptr = &d_move_counts[board_idx * BoardConstants::kBoardSize + figure_idx];
+                    move_flags_t *out_capture_mask =
+                        &d_move_capture_mask[board_idx * BoardConstants::kBoardSize + figure_idx];
+                    move_flags_t &per_board_flags = d_per_board_move_flags[board_idx];
+
+                    // Clear the outputs for this piece.
+                    *out_move_count_ptr = 0;
+                    *out_capture_mask   = 0;
+
+                    // Generate moves for this single piece.
+                    GenerateMovesForSinglePiece<turn>(
+                        figure_idx, white_pieces, black_pieces, kings, out_moves_ptr, *out_move_count_ptr,
+                        *out_capture_mask, per_board_flags
+                    );
+                }
+            }
+        });
+    }
+
+    // Join all threads to ensure completion.
+    for (auto &thr : threads) {
+        thr.join();
+    }
 }
 }  // namespace checkers::cpu::move_gen
 
