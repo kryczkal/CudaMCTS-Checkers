@@ -1,4 +1,8 @@
 # MCTS Checkers
+![3](https://github.com/user-attachments/assets/c784bb6c-1472-4d0e-acb9-e3b773ac6281)
+![4](https://github.com/user-attachments/assets/4d26cc80-48de-4cb8-a4e9-9f5dc510efa7)
+![5](https://github.com/user-attachments/assets/712a14ed-6aad-470a-956b-bf62a082a8dd)
+![2](https://github.com/user-attachments/assets/73b253a7-91cb-4247-81ca-2819e0b4fd6d)
 
 ## Table of Contents
 - [Overview](#overview)
